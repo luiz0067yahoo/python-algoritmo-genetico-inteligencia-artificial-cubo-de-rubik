@@ -1,20 +1,29 @@
 import copy
 import random
-from cruzamento import cruzamento
-from mutacao import mutacao
+import time
+from cruzamento import cruzar_dois_individuos, cruzamento
+from mutacao import mutar_individuo, mutacao
 from pontuacao import calcular_score
-from populacao import MOVIMENTOS, PARALELAS, gerar_populacao
+from populacao import (
+    MOVIMENTOS,
+    PARALELAS,
+    calcular_espaco_busca,
+    gerar_populacao,
+    gerar_todas_combinacoes_validas,
+)
+
+# Limite de combinações para executar busca exaustiva direta (em vez de AG)
+LIMITE_BUSCA_EXAUSTIVA = 4000
 
 
-def selecionar_melhores(populacao, embaralhamento, porcentagem_selecao):
-    """Avalia a população calculando o fitness de cada indivíduo e
-
-    retorna os melhores indivíduos com base no percentual de seleção.
+def selecionar_melhores(populacao, embaralhamento, porcentagem_selecao, cache=None):
     """
-    # Avalia cada indivíduo: tupla (score, individuo)
+    Avalia a população calculando o fitness de cada indivíduo (com suporte a cache)
+    e retorna os melhores indivíduos com base no percentual de seleção.
+    """
     avaliados = []
     for ind in populacao:
-        score = calcular_score(embaralhamento, ind)
+        score = calcular_score(embaralhamento, ind, cache=cache)
         avaliados.append((score, ind))
 
     # Ordena do maior fitness para o menor
@@ -25,139 +34,169 @@ def selecionar_melhores(populacao, embaralhamento, porcentagem_selecao):
     melhores = [ind for _, ind in avaliados[:qtd_selecionada]]
 
     best_score = avaliados[0][0]
-    return melhores, best_score
+    return melhores, best_score, avaliados
+
+
+def rodar_busca_exaustiva(embaralhamento, tamanho_cromossomo, cache=None):
+    """
+    Executa a busca exaustiva determinística quando o espaço de combinações
+    é pequeno (ex: 18 para tamanho 1, 270 para tamanho 2, 3888 para tamanho 3).
+    Garante 100% de precisão e rapidez máxima sem loops desnecessários.
+    """
+    todas_combinacoes = gerar_todas_combinacoes_validas(tamanho_cromossomo)
+    total = len(todas_combinacoes)
+
+    print(f"=== BUSCA EXAUSTIVA DIRETA ({tamanho_cromossomo} MOVIMENTO(S) | {total:,} COMBINAÇÕES) ===")
+    t_inicio = time.time()
+
+    melhor_score = -1
+    melhor_solucao = None
+
+    for i, ind in enumerate(todas_combinacoes, 1):
+        score = calcular_score(embaralhamento, ind, cache=cache)
+        if score > melhor_score:
+            melhor_score = score
+            melhor_solucao = ind
+
+        # Se encontrou solução perfeita (54/54), encerra imediatamente
+        if score == 54:
+            t_total = time.time() - t_inicio
+            print(f"\n[SOLUÇÃO ÓTIMA ENCONTRADA NA BUSCA EXAUSTIVA!] em {t_total:.3f}s")
+            print(f"Avaliadas: {i}/{total} combinações | Score Máximo: 54/54")
+            print(f"Sequência: {melhor_solucao}")
+            return melhor_solucao, melhor_score
+
+    t_total = time.time() - t_inicio
+    print(f"Busca exaustiva concluída em {t_total:.3f}s. Maior Score Atingido: {melhor_score}/54")
+    return melhor_solucao, melhor_score
 
 
 def rodar_algoritmo_genetico(
-    porcentagem_mutacao,
-    porcentagem_cruzamento,
-    porcentagem_selecao,
-    quantidade_geracoes,
-    quantidade_individuos_inicial,
-    embaralhamento,
+    porcentagem_mutacao=0.05,
+    porcentagem_cruzamento=0.70,
+    porcentagem_selecao=0.50,
+    quantidade_geracoes=5000,
+    quantidade_individuos_inicial=1000,
+    embaralhamento=None,
     tamanho_cromossomo=20,
-    intervalo_ciclo=1000,
+    intervalo_ciclo=500,
+    limite_busca_exaustiva=LIMITE_BUSCA_EXAUSTIVA,
 ):
-    """Executa o Algoritmo Genético até resolver o cubo mágico (score == 54) ou
-
-    atingir a quantidade máxima de gerações.
     """
+    Executa o Algoritmo Genético de forma adaptativa e inteligente:
+    - Se o espaço total de busca for menor ou igual a 'limite_busca_exaustiva' (ex: tamanhos 1, 2, 3),
+      utiliza busca exaustiva direta instantânea (eliminando duplicatas e loops infinitos).
+    - Para tamanhos maiores, roda o AG otimizado com Elitismo, Seleção por Torneio/Ranking e Cache de Fitness.
+    """
+    if embaralhamento is None:
+        embaralhamento = []
+
+    espaco_busca = calcular_espaco_busca(tamanho_cromossomo)
+    cache_fitness = {}
+
+    # Caso 1: Espaço de busca pequeno -> Busca Exaustiva Direta
+    if espaco_busca <= limite_busca_exaustiva:
+        return rodar_busca_exaustiva(embaralhamento, tamanho_cromossomo, cache=cache_fitness)
+
+    # Caso 2: Espaço de busca grande -> Algoritmo Genético Otimizado
+    pop_size = min(quantidade_individuos_inicial, espaco_busca)
+
+    print(f"=== INICIANDO ALGORITMO GENÉTICO ({tamanho_cromossomo} MOVIMENTOS) ===")
+    print(f"Espaço de Busca Estimado: {espaco_busca:,} indivíduos possíveis")
+    print(f"Tamanho da População: {pop_size} indivíduos únicos")
     print(
-        f"=== INICIANDO EXECUÇÃO (CROMOSSOMO: {tamanho_cromossomo} MOVIMENTOS) ==="
-    )
-    print(f"População Inicial: {quantidade_individuos_inicial}")
-    print(
-        f"Mutação: {porcentagem_mutacao * 100}% | Cruzamento:"
-        f" {porcentagem_cruzamento * 100}% | Seleção:"
-        f" {porcentagem_selecao * 100}%"
+        f"Taxa de Mutação: {porcentagem_mutacao * 100:.1f}% | Cruzamento:"
+        f" {porcentagem_cruzamento * 100:.1f}% | Seleção:"
+        f" {porcentagem_selecao * 100:.1f}%"
     )
     print(f"Máximo de Gerações: {quantidade_geracoes}")
-    print("-" * 55)
+    print("-" * 60)
 
-    # 1. População inicial
-    populacao = gerar_populacao(
-        quantidade_individuos_inicial, tamanho_cromossomo
-    )
+    # Geração inicial sem repetição
+    populacao = gerar_populacao(pop_size, tamanho_cromossomo)
 
     melhor_solucao = None
     melhor_score_global = -1
     geracao_resolvido = -1
+    t_inicio = time.time()
+
+    # Taxa de elitismo: mantém os melhores 5%
+    qtd_elite = max(1, round(pop_size * 0.05))
 
     for geracao in range(1, quantidade_geracoes + 1):
-        # Passo A: Seleção inicial da geração
-        populacao, max_score = selecionar_melhores(
-            populacao, embaralhamento, porcentagem_selecao
+        # 1. Avaliação e ordenação por fitness
+        melhores, max_score, avaliados = selecionar_melhores(
+            populacao, embaralhamento, porcentagem_selecao, cache=cache_fitness
         )
 
         if max_score > melhor_score_global:
             melhor_score_global = max_score
-            melhor_solucao = populacao[0]
+            melhor_solucao = melhores[0]
 
-        # Condição de parada: Cubo resolvido (54 casinhas corretas)
+        # Condição de parada imediata: Cubo 100% resolvido
         if max_score == 54:
             geracao_resolvido = geracao
+            t_total = time.time() - t_inicio
             print(
-                f"\n[SOLUÇÃO ENCONTRADA!] Na geração {geracao} com Score Máximo"
-                " (54/54)!"
+                f"\n[SOLUÇÃO ENCONTRADA!] Na geração {geracao} em {t_total:.2f}s com Score Máximo (54/54)!"
             )
             break
 
-        # Passo B: Mutação e Seleção
-        populacao_mutada = mutacao(
-            copy.deepcopy(populacao), porcentagem_mutacao
-        )
-        populacao, max_score = selecionar_melhores(
-            populacao_mutada, embaralhamento, porcentagem_selecao
-        )
+        # 2. Elitismo: preserva os melhores indivíduos intactos
+        nova_populacao = [ind for _, ind in avaliados[:qtd_elite]]
 
-        if max_score > melhor_score_global:
-            melhor_score_global = max_score
-            melhor_solucao = populacao[0]
+        # 3. Conjunto de pais selecionados para cruzamento
+        pais_candidatos = melhores
 
-        if max_score == 54:
-            geracao_resolvido = geracao
-            print(
-                "\n[SOLUÇÃO ENCONTRADA NA MUTAÇÃO!] Na geração"
-                f" {geracao} com Score Máximo (54/54)!"
-            )
-            break
+        # 4. Reprodução (Cruzamento e Mutação) para preencher a próxima geração
+        while len(nova_populacao) < pop_size:
+            p1 = random.choice(pais_candidatos)
+            p2 = random.choice(pais_candidatos)
 
-        # Passo C: Cruzamento e Seleção
-        populacao_cruzada = cruzamento(
-            copy.deepcopy(populacao), porcentagem_cruzamento
-        )
-        populacao, max_score = selecionar_melhores(
-            populacao_cruzada, embaralhamento, porcentagem_selecao
-        )
+            # Cruzamento
+            if random.random() < porcentagem_cruzamento:
+                f1, f2 = cruzar_dois_individuos(p1, p2)
+            else:
+                f1, f2 = list(p1), list(p2)
 
-        if max_score > melhor_score_global:
-            melhor_score_global = max_score
-            melhor_solucao = populacao[0]
+            # Mutação
+            f1 = mutar_individuo(f1, porcentagem_mutacao)
+            f2 = mutar_individuo(f2, porcentagem_mutacao)
 
-        if max_score == 54:
-            geracao_resolvido = geracao
-            print(
-                "\n[SOLUÇÃO ENCONTRADA NO CRUZAMENTO!] Na geração"
-                f" {geracao} com Score Máximo (54/54)!"
-            )
-            break
+            nova_populacao.append(f1)
+            if len(nova_populacao) < pop_size:
+                nova_populacao.append(f2)
 
-        # Passo D: Completar a população até a quantidade inicial
-        faltantes = quantidade_individuos_inicial - len(populacao)
-        if faltantes > 0:
-            novos_individuos = gerar_populacao(faltantes, tamanho_cromossomo)
-            populacao.extend(novos_individuos)
+        populacao = nova_populacao
 
-        # Exibe status a cada ciclo (ex: a cada 1000 gerações)
+        # Exibe status a cada ciclo
         if geracao % intervalo_ciclo == 0 or geracao == 1:
             print(
                 f"Geração {geracao}/{quantidade_geracoes} - Melhor Score Atual:"
-                f" {max_score}/54 | Melhor Global: {melhor_score_global}/54"
+                f" {max_score}/54 | Melhor Global: {melhor_score_global}/54 | Cache: {len(cache_fitness):,} estados"
             )
 
-    print("=" * 55)
+    t_total = time.time() - t_inicio
+    print("=" * 60)
     print("=== RESUMO DA EXECUÇÃO ===")
     print(f"Tamanho do Cromossomo: {tamanho_cromossomo}")
+    print(f"Tempo Total: {t_total:.2f}s")
     print(f"Maior Score Atingido: {melhor_score_global}/54")
     print(f"Melhor Sequência de Movimentos: {melhor_solucao}")
     if geracao_resolvido != -1:
-        print(
-            f"Status: PROBLEMA RESOLVIDO NA GERAÇÃO {geracao_resolvido}!"
-        )
+        print(f"Status: PROBLEMA RESOLVIDO NA GERAÇÃO {geracao_resolvido}!")
     else:
-        print(
-            "Status: Limite de gerações atingido sem resolver 100% o cubo."
-        )
+        print("Status: Limite de gerações atingido sem resolver 100% o cubo.")
 
     return melhor_solucao, melhor_score_global
 
 
 if __name__ == "__main__":
     # Parâmetros Globais do Algoritmo Genético
-    PORCENTAGEM_MUTACAO = 0.04  # 4%
-    PORCENTAGEM_CRUZAMENTO = 0.04  # 4%
-    PORCENTAGEM_SELECAO = 0.50  # 50%
-    QUANTIDADE_GERACOES = 5000
+    PORCENTAGEM_MUTACAO = 0.05       # 5%
+    PORCENTAGEM_CRUZAMENTO = 0.70    # 70%
+    PORCENTAGEM_SELECAO = 0.50       # 50%
+    QUANTIDADE_GERACOES = 2000
     QUANTIDADE_INDIVIDUOS_INICIAL = 1000
 
     # Sequência de embaralhamento do cubo para teste
@@ -187,7 +226,7 @@ if __name__ == "__main__":
             quantidade_individuos_inicial=QUANTIDADE_INDIVIDUOS_INICIAL,
             embaralhamento=EMBARALHAMENTO,
             tamanho_cromossomo=tamanho,
-            intervalo_ciclo=1000,
+            intervalo_ciclo=200,
         )
 
         # Se atingiu a pontuação máxima (54/54 casinhas), encerra os testes
