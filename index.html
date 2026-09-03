@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RubikLab 3D // Solucionador por Algoritmo Genético</title>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Three.js & OrbitControls via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Canvas Confetti para celebração do estado resolvido -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       1. CSS RESET & VARIÁVEIS DE DESIGN SYSTEM (TEMA DARK CYBER GLASS)
+       ========================================================================== */
+    :root {
+      --bg-base: #070a14;
+      --bg-card: rgba(14, 20, 36, 0.85);
+      --bg-card-hover: rgba(22, 30, 52, 0.95);
+      --border-subtle: rgba(255, 255, 255, 0.09);
+      --border-focus: rgba(99, 102, 241, 0.6);
+      
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+
+      /* Cores das Faces Oficiais WCA */
+      --color-white: #ffffff;
+      --color-yellow: #ffd500;
+      --color-green: #009e60;
+      --color-blue: #0051ba;
+      --color-orange: #ff5800;
+      --color-red: #c41e3a;
+
+      /* Cores de Ação e Status */
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-cyan: #06b6d4;
+      --accent-purple: #a855f7;
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 22px;
+      
+      --shadow-glass: 0 10px 36px 0 rgba(0, 0, 0, 0.55);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.16) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.05) 0px, transparent 60%);
+    }
+
+    /* ==========================================================================
+       2. HEADER DA APLICAÇÃO
+       ========================================================================== */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem 1.75rem;
+      border-bottom: 1px solid var(--border-subtle);
+      backdrop-filter: blur(16px);
+      background: rgba(7, 10, 20, 0.9);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #6366f1, #06b6d4);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+      font-size: 1.3rem;
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.95rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: var(--accent-emerald);
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.scrambled {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: var(--accent-amber);
+    }
+
+    .status-badge.solving {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.45);
+      color: #818cf8;
+      animation: pulseGlow 1.5s infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 6px rgba(99, 102, 241, 0.3); }
+      50% { box-shadow: 0 0 16px rgba(99, 102, 241, 0.6); }
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    /* ==========================================================================
+       3. LAYOUT PRINCIPAL
+       ========================================================================== */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 520px;
+      gap: 1.25rem;
+      padding: 1.25rem 1.75rem;
+      max-width: 1840px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 1200px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ==========================================================================
+       4. CONTAINER 3D DO CUBO & CONTROLES OVERLAY
+       ========================================================================== */
+    .viewport-container {
+      position: relative;
+      background: radial-gradient(circle at center, #151d32 0%, #080c18 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      min-height: 560px;
+      box-shadow: var(--shadow-glass);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #webgl-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    #webgl-canvas:active {
+      cursor: grabbing;
+    }
+
+    .viewport-overlay {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      z-index: 10;
+    }
+
+    .overlay-btn {
+      background: rgba(14, 20, 36, 0.85);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 0.5rem 0.85rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 500;
+      backdrop-filter: blur(8px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .overlay-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .overlay-btn.active {
+      background: rgba(99, 102, 241, 0.28);
+      border-color: var(--primary);
+      color: #818cf8;
+    }
+
+    .viewport-hint {
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      background: rgba(7, 10, 20, 0.8);
+      backdrop-filter: blur(8px);
+      padding: 0.45rem 0.95rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+      pointer-events: none;
+    }
+
+    /* 2D Flat Net Preview Overlay */
+    .flat-net-widget {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      background: rgba(12, 18, 32, 0.94);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(14px);
+      border-radius: var(--radius-lg);
+      padding: 0.85rem;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      z-index: 10;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .flat-net-widget.minimized {
+      transform: scale(0.9) translateY(15px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .flat-net-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+
+    .flat-net-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .cube-net-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 38px);
+      grid-template-rows: repeat(3, 38px);
+      gap: 3px;
+    }
+
+    .net-face {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 1.5px;
+      background: #111;
+      padding: 1.5px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .net-tile {
+      border-radius: 1.5px;
+      transition: background-color 0.2s ease;
+    }
+
+    .face-up    { grid-column: 2; grid-row: 1; }
+    .face-left  { grid-column: 1; grid-row: 2; }
+    .face-front { grid-column: 2; grid-row: 2; }
+    .face-right { grid-column: 3; grid-row: 2; }
+    .face-back  { grid-column: 4; grid-row: 2; }
+    .face-down  { grid-column: 2; grid-row: 3; }
+
+    /* ==========================================================================
+       5. PAINEL LATERAL DE CONTROLES E FORMULÁRIO DO ALGORITMO GENÉTICO
+       ========================================================================== */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-height: calc(100vh - 90px);
+      overflow-y: auto;
+      padding-right: 0.35rem;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 9999px;
+    }
+    .sidebar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 1.15rem;
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow-glass);
+      transition: border-color 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Placar de Estado Resolvido */
+    .score-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .score-box {
+      background: rgba(9, 14, 26, 0.7);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .score-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .score-value {
+      font-family: var(--font-mono);
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+    }
+
+    .score-total {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    .score-bar-bg {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      margin-top: 0.35rem;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #10b981);
+      width: 100%;
+      border-radius: 9999px;
+      transition: width 0.4s ease;
+    }
+
+    /* ==========================================================================
+       6. PAINEL DE MONITORAMENTO EM TEMPO REAL (SESSÃO ATIVA)
+       ========================================================================== */
+    .card-monitoring {
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      background: linear-gradient(180deg, rgba(12, 28, 42, 0.92) 0%, rgba(8, 18, 30, 0.9) 100%);
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      height: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+      border-radius: 9999px;
+      transition: width 0.2s ease;
+    }
+
+    .metrics-grid-live {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    .metric-tile {
+      background: rgba(6, 12, 22, 0.85);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.5rem 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .metric-tile-title {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .metric-tile-val {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .terminal-box {
+      background: #040810;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: #94a3b8;
+      height: 125px;
+      overflow-y: auto;
+      line-height: 1.45;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .terminal-box::-webkit-scrollbar {
+      width: 4px;
+    }
+    .terminal-box::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .terminal-line {
+      word-break: break-word;
+    }
+    .terminal-line.success {
+      color: var(--accent-emerald);
+      font-weight: 700;
+    }
+
+    .btn-cancel-ag {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      width: 100%;
+      margin-top: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-cancel-ag:hover {
+      background: rgba(244, 63, 94, 0.25);
+      border-color: var(--accent-rose);
+    }
+
+    /* ==========================================================================
+       7. PAINEL DE INPUTS PRÉ-PREENCHIDOS PARA resolver_cubo_incremental
+       ========================================================================== */
+    .card-genetic-form {
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      background: linear-gradient(180deg, rgba(20, 26, 48, 0.9) 0%, rgba(12, 17, 34, 0.88) 100%);
+    }
+
+    .input-grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .input-grid-3col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .form-label {
+      font-size: 0.73rem;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .form-label small {
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: 0.68rem;
+    }
+
+    .form-input {
+      width: 100%;
+      background: rgba(6, 10, 20, 0.95);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.45rem 0.6rem;
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+
+    .btn-solve-ag {
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #06b6d4 100%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.45);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-top: 0.5rem;
+    }
+
+    .btn-solve-ag:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 26px rgba(99, 102, 241, 0.7);
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .btn-solve-ag:active {
+      transform: translateY(0);
+    }
+
+    .btn-solve-ag:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Caixa de Resultados Finais */
+    .ag-result-box {
+      background: rgba(9, 14, 26, 0.9);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.75rem;
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .result-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .result-moves {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 0.5rem 0.65rem;
+      border-radius: var(--radius-sm);
+      word-break: break-all;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .result-stats-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .spinner {
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ==========================================================================
+       8. SEQUÊNCIA ATUAL & NOTAÇÕES WCA
+       ========================================================================== */
+    .textarea-wrapper {
+      position: relative;
+      margin-bottom: 0.75rem;
+    }
+
+    #sequence-textarea {
+      width: 100%;
+      min-height: 65px;
+      max-height: 90px;
+      background: rgba(6, 10, 18, 0.95);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.65rem;
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1.4;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    #sequence-textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .textarea-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .reduction-metrics {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .badge-reduction {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: var(--accent-emerald);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.8rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      font-family: var(--font-sans);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 0 14px rgba(99, 102, 241, 0.45);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--border-subtle);
+      color: var(--text-main);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.1);
+      border-color: rgba(244, 63, 94, 0.25);
+      color: var(--accent-rose);
+    }
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.22);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      margin-top: 0.5rem;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .3s;
+      border-radius: 9999px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+    input:checked + .slider:before {
+      transform: translateX(16px);
+    }
+
+    .face-controls-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.65rem;
+    }
+
+    @media (max-width: 480px) {
+      .face-controls-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .face-section {
+      background: rgba(8, 12, 22, 0.55);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .face-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 100%;
+    }
+
+    .face-section.face-u::before { background: var(--color-white); }
+    .face-section.face-d::before { background: var(--color-yellow); }
+    .face-section.face-f::before { background: var(--color-green); }
+    .face-section.face-b::before { background: var(--color-blue); }
+    .face-section.face-l::before { background: var(--color-orange); }
+    .face-section.face-r::before { background: var(--color-red); }
+
+    .face-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 0.4rem;
+    }
+
+    .face-name {
+      font-size: 0.74rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .face-color-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .face-buttons-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.35rem;
+    }
+
+    .move-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 0.42rem 0.2rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .move-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .move-btn:active {
+      transform: scale(0.95);
+      background: var(--primary);
+    }
+
+    .face-u .move-btn:hover { border-color: var(--color-white); color: var(--color-white); }
+    .face-d .move-btn:hover { border-color: var(--color-yellow); color: var(--color-yellow); }
+    .face-f .move-btn:hover { border-color: var(--color-green); color: var(--color-green); }
+    .face-b .move-btn:hover { border-color: var(--color-blue); color: var(--color-blue); }
+    .face-l .move-btn:hover { border-color: var(--color-orange); color: var(--color-orange); }
+    .face-r .move-btn:hover { border-color: var(--color-red); color: var(--color-red); }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: rgba(14, 20, 36, 0.95);
+      border: 1px solid var(--border-focus);
+      color: #fff;
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      font-weight: 500;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      opacity: 0;
+      transform: translateY(15px);
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       HEADER PRINCIPAL
+       ========================================================================== -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🧊</div>
+      <div class="brand-text">
+        <h1>RubikLab 3D // Solucionador por Algoritmo Genético</h1>
+        <p>Monitoramento em Tempo Real via Sessão & Solução Visual 3D</p>
+      </div>
+    </div>
+
+    <div class="header-badges">
+      <div id="status-badge" class="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">Cubo Resolvido (100%)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       CONTEÚDO PRINCIPAL
+       ========================================================================== -->
+  <main>
+    <!-- VIEWPORT 3D DO THREE.JS -->
+    <div class="viewport-container">
+      <div class="viewport-overlay">
+        <button id="btn-reset-cam" class="overlay-btn" title="Centralizar Câmera 3D">
+          <span>🔄</span> Câmera
+        </button>
+        <button id="btn-toggle-net" class="overlay-btn active" title="Exibir/Ocultar Vista 2D Desdobrada">
+          <span>🗺</span> Vista 2D
+        </button>
+        <button id="btn-speed-toggle" class="overlay-btn" title="Alterar Velocidade de Rotação">
+          <span>⚡</span> <span id="speed-label">Normal</span>
+        </button>
+      </div>
+
+      <canvas id="webgl-canvas"></canvas>
+
+      <div class="viewport-hint">
+        🖱️ Arraste para orbitar • Role para zoom • Acompanhe o progresso do AG ao vivo no painel
+      </div>
+
+      <!-- Mini-mapa 2D Desdobrado -->
+      <div id="flat-net-widget" class="flat-net-widget">
+        <div class="flat-net-header">
+          <span class="flat-net-title">Planificação 2D</span>
+        </div>
+        <div class="cube-net-grid">
+          <div class="net-face face-up" id="net-U">
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+          </div>
+          <div class="net-face face-left" id="net-L">
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+          </div>
+          <div class="net-face face-front" id="net-F">
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+          </div>
+          <div class="net-face face-right" id="net-R">
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+          </div>
+          <div class="net-face face-back" id="net-B">
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+          </div>
+          <div class="net-face face-down" id="net-D">
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAINEL LATERAL DE CONTROLES E MONITORAMENTO -->
+    <aside class="sidebar">
+      
+      <!-- CARD 1: PLACAR / SCOREBOARD -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📊 Score & Estado do Cubo</span>
+        </div>
+        <div class="score-container">
+          <div class="score-box">
+            <span class="score-label">Peças Corretas</span>
+            <div class="score-value">
+              <span id="score-cubies">26</span>
+              <span class="score-total">/ 26</span>
+            </div>
+            <div class="score-bar-bg">
+              <div id="bar-cubies" class="score-bar-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <div class="score-box">
+            <span class="score-label">Stickers Corretos</span>
+            <div class="score-value">
+              <span id="score-stickers">54</span>
+              <span class="score-total">/ 54</span>
+            </div>
+            <div class="score-bar-bg">
+              <div id="bar-stickers" class="score-bar-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2: PAINEL DE MONITORAMENTO EM TEMPO REAL (SESSÃO ATIVA) -->
+      <div id="card-monitoring" class="card card-monitoring">
+        <div class="card-header">
+          <span class="card-title" style="color: var(--accent-emerald);">
+            <span class="spinner"></span> Monitoramento da Sessão (Ao Vivo)
+          </span>
+          <span id="live-timer" style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">0.00s</span>
+        </div>
+
+        <div class="progress-bar-container">
+          <div id="live-progress-bar" class="progress-bar-fill"></div>
+        </div>
+
+        <div class="metrics-grid-live">
+          <div class="metric-tile">
+            <span class="metric-tile-title">Etapa Atual</span>
+            <span id="live-etapa" class="metric-tile-val" style="font-size: 0.8rem; color: #a5b4fc;">Iniciando...</span>
+          </div>
+
+          <div class="metric-tile" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.3);">
+            <span class="metric-tile-title">Operação Atual</span>
+            <span id="live-operacao-text" class="metric-tile-val" style="font-size: 0.82rem; color: #c7d2fe;">🧬 Criando indivíduos</span>
+          </div>
+
+          <div class="metric-tile">
+            <span class="metric-tile-title">Geração Atual</span>
+            <span id="live-geracao" class="metric-tile-val">0 / 2000</span>
+          </div>
+
+          <div class="metric-tile">
+            <span class="metric-tile-title">Indivíduos Avaliados</span>
+            <span id="live-avaliados" class="metric-tile-val" style="color: var(--accent-amber);">0</span>
+          </div>
+
+          <div class="metric-tile">
+            <span class="metric-tile-title">Melhor Score</span>
+            <span id="live-score" class="metric-tile-val" style="color: var(--accent-emerald);">0 / 54</span>
+          </div>
+        </div>
+
+        <div class="metric-tile" style="margin-top: 0.2rem;">
+          <span class="metric-tile-title">Melhor Sequência Encontrada</span>
+          <span id="live-melhor-solucao" class="metric-tile-val" style="color: #38bdf8; font-size: 0.88rem;">--</span>
+        </div>
+
+        <div class="terminal-box" id="terminal-logs">
+          <div class="terminal-line">[00:00:00] Aguardando início do processamento...</div>
+        </div>
+
+        <button id="btn-cancel-ag" class="btn-cancel-ag" style="display: flex;">
+          🛑 Interromper / Cancelar Execução
+        </button>
+      </div>
+
+      <!-- CARD 3: PAINEL DE INPUTS PRÉ-PREENCHIDOS PARA resolver_cubo_incremental -->
+      <div class="card card-genetic-form">
+        <div class="card-header">
+          <span class="card-title">⚙️ Parâmetros do Algoritmo Genético</span>
+          <button id="btn-reset-defaults" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" title="Restaurar valores padrão">
+            ↺ Padrões
+          </button>
+        </div>
+
+        <!-- Inputs Pré-Preenchidos -->
+        <form id="form-ag-params" onsubmit="event.preventDefault();">
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <div class="form-label">
+              <span>embaralhamento</span>
+              <small>Lista de movimentos aplicados</small>
+            </div>
+            <input type="text" id="input-embaralhamento" class="form-input" placeholder="ex: U R F' ou use o botão Embaralhar" value="">
+          </div>
+
+          <div class="input-grid-3col">
+            <div class="form-group">
+              <div class="form-label">
+                <span>porcentagem_mutacao</span>
+              </div>
+              <input type="number" id="input-mutacao" class="form-input" step="0.01" min="0" max="1" value="0.05">
+            </div>
+
+            <div class="form-group">
+              <div class="form-label">
+                <span>porcentagem_cruzamento</span>
+              </div>
+              <input type="number" id="input-cruzamento" class="form-input" step="0.01" min="0" max="1" value="0.70">
+            </div>
+
+            <div class="form-group">
+              <div class="form-label">
+                <span>porcentagem_selecao</span>
+              </div>
+              <input type="number" id="input-selecao" class="form-input" step="0.01" min="0.05" max="1" value="0.50">
+            </div>
+          </div>
+
+          <div class="input-grid-3col">
+            <div class="form-group">
+              <div class="form-label">
+                <span>quantidade_geracoes</span>
+              </div>
+              <input type="number" id="input-geracoes" class="form-input" step="100" min="10" max="20000" value="2000">
+            </div>
+
+            <div class="form-group">
+              <div class="form-label">
+                <span>quantidade_individuos_inicial</span>
+              </div>
+              <input type="number" id="input-populacao" class="form-input" step="100" min="10" max="5000" value="1000">
+            </div>
+
+            <div class="form-group">
+              <div class="form-label">
+                <span>intervalo_ciclo</span>
+              </div>
+              <input type="number" id="input-ciclo" class="form-input" step="50" min="10" max="2000" value="500">
+            </div>
+          </div>
+
+          <div class="input-grid-2col">
+            <div class="form-group">
+              <div class="form-label">
+                <span>tamanho_minimo</span>
+              </div>
+              <input type="number" id="input-tam-min" class="form-input" min="1" max="54" value="1">
+            </div>
+
+            <div class="form-group">
+              <div class="form-label">
+                <span>tamanho_maximo</span>
+              </div>
+              <input type="number" id="input-tam-max" class="form-input" min="1" max="54" value="54">
+            </div>
+          </div>
+
+          <button type="button" id="btn-solve-ag" class="btn-solve-ag">
+            <span id="ag-btn-icon">🧬</span>
+            <span id="ag-btn-text">Iniciar Solução com Algoritmo Genético</span>
+          </button>
+        </form>
+
+        <!-- Caixa de Resultados Finais -->
+        <div id="ag-result-box" class="ag-result-box" style="margin-top: 0.85rem;">
+          <div class="result-status">
+            <span id="ag-result-title" style="color: var(--accent-emerald);">Solução Encontrada!</span>
+            <span id="ag-result-time">0.00s</span>
+          </div>
+          <div id="ag-result-moves" class="result-moves">--</div>
+          <div class="result-stats-row">
+            <span id="ag-result-score">Score: 54/54</span>
+            <span id="ag-result-chrom">Cromossomo: 0 movs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 4: SEQUÊNCIA REGISTRADA NO CUBO -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚡ Sequência Registrada no Cubo</span>
+          <div class="reduction-metrics">
+            <span id="raw-count-label">0 movs</span>
+            <span id="reduction-badge" class="badge-reduction" style="display: none;">-0%</span>
+          </div>
+        </div>
+
+        <div class="textarea-wrapper">
+          <textarea id="sequence-textarea" placeholder="Nenhum movimento registrado. Clique nos botões abaixo ou embaralhe..." spellcheck="false"></textarea>
+        </div>
+
+        <div class="textarea-actions">
+          <div class="btn-group">
+            <button id="btn-play-seq" class="btn btn-primary" title="Executar sequência no cubo 3D">
+              ▶ Executar
+            </button>
+            <button id="btn-invert-seq" class="btn btn-secondary" title="Inverter e resolver a sequência">
+              ⏮ Inverter
+            </button>
+          </div>
+          <div class="btn-group">
+            <button id="btn-copy-seq" class="btn btn-secondary" title="Copiar sequência">
+              📋 Copiar
+            </button>
+            <button id="btn-clear-seq" class="btn btn-danger" title="Limpar sequência">
+              🗑 Limpar
+            </button>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <span>Otimização Algébrica Automática (Cancelamento Cruzado)</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-optimizer" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span>Formato Compacto (ex: <code>D2R'D</code> sem espaços)</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-compact" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- CARD 5: NOTAÇÕES OFICIAIS WCA -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🎮 Notações Oficiais (WCA)</span>
+        </div>
+
+        <div class="face-controls-grid">
+          <div class="face-section face-u">
+            <div class="face-label-row">
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-white);"></span> U (Topo)</span>
+            </div>
+            <div class="face-buttons-row">
+              <button class="move-btn" data-move="U">U</button>
+              <button class="move-btn" data-move="U'">U'</button>
+              <button class="move-btn" data-move="U2">U2</button>
+            </div>
+          </div>
+
+          <div class="face-section face-d">
+            <div class="face-label-row">
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-yellow);"></span> D (Base)</span>
+            </div>
+            <div class="face-buttons-row">
+              <button class="move-btn" data-move="D">D</button>
+              <button class="move-btn" data-move="D'">D'</button>
+              <button class="move-btn" data-move="D2">D2</button>
+            </div>
+          </div>
+
+          <div class="face-section face-f">
+            <div class="face-label-row">
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-green);"></span> F (Frente)</span>
+            </div>
+            <div class="face-buttons-row">
+              <button class="move-btn" data-move="F">F</button>
+              <button class="move-btn" data-move="F'">F'</button>
+              <button class="move-btn" data-move="F2">F2</button>
+            </div>
+          </div>
+
+          <div class="face-section face-b">
+            <div class="face-label-row">
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-blue);"></span> B (Atrás)</span>
+            </div>
+            <div class="face-buttons-row">
+              <button class="move-btn" data-move="B">B</button>
+              <button class="move-btn" data-move="B'">B'</button>
+              <button class="move-btn" data-move="B2">B2</button>
+            </div>
+          </div>
+
+          <div class="face-section face-l">
+            <div class="face-label-row">
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-orange);"></span> L (Esquerda)</span>
+            </div>
+            <div class="face-buttons-row">
+              <button class="move-btn" data-move="L">L</button>
+              <button class="move-btn" data-move="L'">L'</button>
+              <button class="move-btn" data-move="L2">L2</button>
+            </div>
+          </div>
+
+          <div class="face-section face-r">
+            <div class="face-label-row">
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-red);"></span> R (Direita)</span>
+            </div>
+            <div class="face-buttons-row">
+              <button class="move-btn" data-move="R">R</button>
+              <button class="move-btn" data-move="R'">R'</button>
+              <button class="move-btn" data-move="R2">R2</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <button id="btn-scramble" class="btn btn-secondary">🎲 Embaralhar (25x)</button>
+          <button id="btn-reset-cube" class="btn btn-secondary">↺ Resetar Cubo</button>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast">Ação concluída</div>
+
+  <!-- ==========================================================================
+       9. JAVASCRIPT: MOTOR 3D & ACOMPANHAMENTO EM TEMPO REAL VIA SESSÃO
+       ========================================================================== -->
+  <script>
+    // =========================================================================
+    // 1. CONFIGURAÇÕES & CORES OFICIAIS WCA
+    // =========================================================================
+    const CUBE_COLORS = {
+      U: 0xffffff,
+      D: 0xffd500,
+      F: 0x009e60,
+      B: 0x0051ba,
+      L: 0xff5800,
+      R: 0xc41e3a,
+      INNER: 0x111622
+    };
+
+    const CSS_COLORS = {
+      U: '#ffffff',
+      D: '#ffd500',
+      F: '#009e60',
+      B: '#0051ba',
+      L: '#ff5800',
+      R: '#c41e3a'
+    };
+
+    const OPPOSITE_FACES = {
+      'U': 'D', 'D': 'U',
+      'L': 'R', 'R': 'L',
+      'F': 'B', 'B': 'F'
+    };
+
+    const FACE_AXIS_MAP = {
+      'R': { axis: 'x', layer: 1,  sign: -1 },
+      'L': { axis: 'x', layer: -1, sign: 1 },
+      'U': { axis: 'y', layer: 1,  sign: -1 },
+      'D': { axis: 'y', layer: -1, sign: 1 },
+      'F': { axis: 'z', layer: 1,  sign: -1 },
+      'B': { axis: 'z', layer: -1, sign: 1 }
+    };
+
+    const SPEEDS = [
+      { name: 'Normal', duration: 180 },
+      { name: 'Rápido', duration: 75 },
+      { name: 'Instantâneo', duration: 0 }
+    ];
+    let currentSpeedIdx = 0;
+
+    // =========================================================================
+    // 2. PARSER & OTIMIZADOR DE MOVIMENTOS
+    // =========================================================================
+    function parseMoveString(str) {
+      if (!str) return [];
+      const regex = /([UDLRFBudlrfb])(['’2]?)/g;
+      const moves = [];
+      let match;
+      while ((match = regex.exec(str)) !== null) {
+        const face = match[1].toUpperCase();
+        const modifier = match[2];
+        let amount = 1;
+        if (modifier === '2') amount = 2;
+        else if (modifier === "'" || modifier === '’') amount = 3;
+        moves.push({ face, amount });
+      }
+      return moves;
+    }
+
+    function movesToString(moves, spaced = false) {
+      return moves.map(m => {
+        if (m.amount === 1) return m.face;
+        if (m.amount === 2) return m.face + '2';
+        if (m.amount === 3) return m.face + "'";
+        return '';
+      }).filter(Boolean).join(spaced ? ' ' : '');
+    }
+
+    function movesToArrayOfStrings(moves) {
+      return moves.map(m => {
+        if (m.amount === 1) return m.face;
+        if (m.amount === 2) return m.face + '2';
+        if (m.amount === 3) return m.face + "'";
+        return m.face;
+      });
+    }
+
+    function optimizeMoves(moveList) {
+      let moves = moveList.map(m => ({ ...m }));
+      let changed = true;
+
+      while (changed) {
+        changed = false;
+        for (let i = 0; i < moves.length; i++) {
+          const current = moves[i];
+          for (let j = i + 1; j < moves.length; j++) {
+            const next = moves[j];
+            if (next.face === current.face) {
+              let canCommute = true;
+              for (let k = i + 1; k < j; k++) {
+                if (moves[k].face !== OPPOSITE_FACES[current.face]) {
+                  canCommute = false;
+                  break;
+                }
+              }
+
+              if (canCommute) {
+                const newAmount = (current.amount + next.amount) % 4;
+                if (newAmount === 0) {
+                  moves.splice(j, 1);
+                  moves.splice(i, 1);
+                } else {
+                  moves[i].amount = newAmount;
+                  moves.splice(j, 1);
+                }
+                changed = true;
+                break;
+              } else {
+                break;
+              }
+            } else if (next.face !== OPPOSITE_FACES[current.face]) {
+              break;
+            }
+          }
+          if (changed) break;
+        }
+      }
+
+      return moves;
+    }
+
+    function invertMoveSequence(moves) {
+      return moves.slice().reverse().map(m => {
+        let invAmount = (4 - m.amount) % 4;
+        return { face: m.face, amount: invAmount };
+      });
+    }
+
+    // =========================================================================
+    // 3. MOTOR GRÁFICO 3D (THREE.JS + CUBIES)
+    // =========================================================================
+    let scene, camera, renderer, controls;
+    let cubeGroup;
+    const cubies = [];
+    let wasManipulated = false;
+
+    function init3D() {
+      const container = document.querySelector('.viewport-container');
+      const canvas = document.getElementById('webgl-canvas');
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(5.2, 4.4, 6.2);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 3.5;
+      controls.maxDistance = 14;
+      controls.rotateSpeed = 0.8;
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+      scene.add(ambientLight);
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.65);
+      dirLight1.position.set(10, 15, 12);
+      scene.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.35);
+      dirLight2.position.set(-10, -10, -10);
+      scene.add(dirLight2);
+
+      cubeGroup = new THREE.Group();
+      scene.add(cubeGroup);
+
+      buildRubiksCube();
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    function buildRubiksCube() {
+      while (cubeGroup.children.length > 0) {
+        cubeGroup.remove(cubeGroup.children[0]);
+      }
+      cubies.length = 0;
+
+      const size = 0.95;
+      const spacing = 1.0;
+
+      for (let x = -1; x <= 1; x++) {
+        for (let y = -1; y <= 1; y++) {
+          for (let z = -1; z <= 1; z++) {
+            const isCenterCore = (x === 0 && y === 0 && z === 0);
+            const geometry = new THREE.BoxGeometry(size, size, size);
+
+            const materials = [
+              createStickerMaterial(x === 1 ? CUBE_COLORS.R : CUBE_COLORS.INNER),
+              createStickerMaterial(x === -1 ? CUBE_COLORS.L : CUBE_COLORS.INNER),
+              createStickerMaterial(y === 1 ? CUBE_COLORS.U : CUBE_COLORS.INNER),
+              createStickerMaterial(y === -1 ? CUBE_COLORS.D : CUBE_COLORS.INNER),
+              createStickerMaterial(z === 1 ? CUBE_COLORS.F : CUBE_COLORS.INNER),
+              createStickerMaterial(z === -1 ? CUBE_COLORS.B : CUBE_COLORS.INNER)
+            ];
+
+            const cubie = new THREE.Mesh(geometry, materials);
+            cubie.position.set(x * spacing, y * spacing, z * spacing);
+            cubie.castShadow = true;
+            cubie.receiveShadow = true;
+
+            cubie.userData = {
+              initialPos: new THREE.Vector3(x, y, z),
+              currentGrid: new THREE.Vector3(x, y, z),
+              isCenterCore: isCenterCore
+            };
+
+            cubeGroup.add(cubie);
+            cubies.push(cubie);
+          }
+        }
+      }
+
+      updateSolvedScore();
+      update2DNet();
+    }
+
+    function createStickerMaterial(colorHex) {
+      return new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.25,
+        metalness: 0.05
+      });
+    }
+
+    function onWindowResize() {
+      const container = document.querySelector('.viewport-container');
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // =========================================================================
+    // 4. EXECUÇÃO DE MOVIMENTOS 3D
+    // =========================================================================
+    const moveQueue = [];
+    let isAnimating = false;
+    let onQueueEmptyCallback = null;
+
+    function queueMove(face, amount = 1, onComplete = null) {
+      wasManipulated = true;
+      moveQueue.push({ face, amount, onComplete });
+      processMoveQueue();
+    }
+
+    function processMoveQueue() {
+      if (isAnimating || moveQueue.length === 0) {
+        if (moveQueue.length === 0 && onQueueEmptyCallback) {
+          const cb = onQueueEmptyCallback;
+          onQueueEmptyCallback = null;
+          cb();
+        }
+        return;
+      }
+
+      const item = moveQueue.shift();
+      executeRotation(item.face, item.amount, () => {
+        updateSolvedScore();
+        update2DNet();
+        if (item.onComplete) item.onComplete();
+        processMoveQueue();
+      });
+    }
+
+    function executeRotation(face, amount, callback) {
+      const config = FACE_AXIS_MAP[face];
+      if (!config) {
+        if (callback) callback();
+        return;
+      }
+
+      const duration = SPEEDS[currentSpeedIdx].duration;
+      const angleTotal = config.sign * amount * (Math.PI / 2);
+      const activeCubies = [];
+      const threshold = 0.45;
+
+      cubies.forEach(cubie => {
+        const val = cubie.position[config.axis];
+        if (Math.abs(val - config.layer) < threshold) {
+          activeCubies.push(cubie);
+        }
+      });
+
+      const pivot = new THREE.Group();
+      cubeGroup.add(pivot);
+
+      activeCubies.forEach(cubie => {
+        pivot.attach(cubie);
+      });
+
+      if (duration <= 0) {
+        pivot.rotation[config.axis] = angleTotal;
+        pivot.updateMatrixWorld(true);
+
+        activeCubies.forEach(cubie => {
+          cubeGroup.attach(cubie);
+          cubie.position.x = Math.round(cubie.position.x);
+          cubie.position.y = Math.round(cubie.position.y);
+          cubie.position.z = Math.round(cubie.position.z);
+          cubie.updateMatrixWorld(true);
+        });
+
+        cubeGroup.remove(pivot);
+        if (callback) callback();
+        return;
+      }
+
+      isAnimating = true;
+      const startTime = performance.now();
+
+      function stepAnimation(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const ease = progress < 0.5 
+          ? 2 * progress * progress 
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        pivot.rotation[config.axis] = angleTotal * ease;
+
+        if (progress < 1) {
+          requestAnimationFrame(stepAnimation);
+        } else {
+          pivot.rotation[config.axis] = angleTotal;
+          pivot.updateMatrixWorld(true);
+
+          activeCubies.forEach(cubie => {
+            cubeGroup.attach(cubie);
+            cubie.position.x = Math.round(cubie.position.x);
+            cubie.position.y = Math.round(cubie.position.y);
+            cubie.position.z = Math.round(cubie.position.z);
+            cubie.updateMatrixWorld(true);
+          });
+
+          cubeGroup.remove(pivot);
+          isAnimating = false;
+          if (callback) callback();
+        }
+      }
+
+      requestAnimationFrame(stepAnimation);
+    }
+
+    // =========================================================================
+    // 5. CALCULADOR DE SCORE & PLANIFICAÇÃO 2D
+    // =========================================================================
+    const FACE_NORMALS = {
+      U: new THREE.Vector3(0, 1, 0),
+      D: new THREE.Vector3(0, -1, 0),
+      F: new THREE.Vector3(0, 0, 1),
+      B: new THREE.Vector3(0, 0, -1),
+      L: new THREE.Vector3(-1, 0, 0),
+      R: new THREE.Vector3(1, 0, 0)
+    };
+
+    const MATERIAL_NORMALS = [
+      { normal: new THREE.Vector3(1, 0, 0), face: 'R' },
+      { normal: new THREE.Vector3(-1, 0, 0), face: 'L' },
+      { normal: new THREE.Vector3(0, 1, 0), face: 'U' },
+      { normal: new THREE.Vector3(0, -1, 0), face: 'D' },
+      { normal: new THREE.Vector3(0, 0, 1), face: 'F' },
+      { normal: new THREE.Vector3(0, 0, -1), face: 'B' }
+    ];
+
+    function updateSolvedScore() {
+      let correctCubiesCount = 0;
+      let correctStickersCount = 0;
+
+      cubies.forEach(cubie => {
+        if (cubie.userData.isCenterCore) return;
+        const pos = cubie.position;
+        const initialPos = cubie.userData.initialPos;
+
+        const isPosCorrect = (
+          Math.round(pos.x) === initialPos.x &&
+          Math.round(pos.y) === initialPos.y &&
+          Math.round(pos.z) === initialPos.z
+        );
+
+        let isOrientCorrect = true;
+        MATERIAL_NORMALS.forEach(matInfo => {
+          const isInitialSticker = (
+            (matInfo.face === 'R' && initialPos.x === 1) ||
+            (matInfo.face === 'L' && initialPos.x === -1) ||
+            (matInfo.face === 'U' && initialPos.y === 1) ||
+            (matInfo.face === 'D' && initialPos.y === -1) ||
+            (matInfo.face === 'F' && initialPos.z === 1) ||
+            (matInfo.face === 'B' && initialPos.z === -1)
+          );
+
+          if (isInitialSticker) {
+            const worldNormal = matInfo.normal.clone().applyQuaternion(cubie.quaternion);
+            const targetNormal = FACE_NORMALS[matInfo.face];
+            if (worldNormal.dot(targetNormal) < 0.8) {
+              isOrientCorrect = false;
+            }
+          }
+        });
+
+        if (isPosCorrect && isOrientCorrect) correctCubiesCount++;
+      });
+
+      Object.keys(FACE_NORMALS).forEach(faceKey => {
+        const faceNormal = FACE_NORMALS[faceKey];
+        cubies.forEach(cubie => {
+          if (cubie.userData.isCenterCore) return;
+          MATERIAL_NORMALS.forEach(matInfo => {
+            const initialPos = cubie.userData.initialPos;
+            const hasThisSticker = (
+              (matInfo.face === 'R' && initialPos.x === 1) ||
+              (matInfo.face === 'L' && initialPos.x === -1) ||
+              (matInfo.face === 'U' && initialPos.y === 1) ||
+              (matInfo.face === 'D' && initialPos.y === -1) ||
+              (matInfo.face === 'F' && initialPos.z === 1) ||
+              (matInfo.face === 'B' && initialPos.z === -1)
+            );
+
+            if (hasThisSticker) {
+              const currentNormal = matInfo.normal.clone().applyQuaternion(cubie.quaternion);
+              if (currentNormal.dot(faceNormal) > 0.8 && matInfo.face === faceKey) {
+                correctStickersCount++;
+              }
+            }
+          });
+        });
+      });
+
+      document.getElementById('score-cubies').textContent = correctCubiesCount;
+      document.getElementById('score-stickers').textContent = correctStickersCount;
+
+      const cubiesPct = Math.round((correctCubiesCount / 26) * 100);
+      const stickersPct = Math.round((correctStickersCount / 54) * 100);
+
+      document.getElementById('bar-cubies').style.width = `${cubiesPct}%`;
+      document.getElementById('bar-stickers').style.width = `${stickersPct}%`;
+
+      const statusBadge = document.getElementById('status-badge');
+      const statusText = document.getElementById('status-text');
+
+      if (correctStickersCount === 54) {
+        statusBadge.className = 'status-badge';
+        statusText.textContent = 'Cubo Resolvido (100%)';
+        if (wasManipulated && typeof confetti === 'function') {
+          confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+        }
+      } else {
+        statusBadge.className = 'status-badge scrambled';
+        statusText.textContent = `Em Andamento (${stickersPct}%)`;
+      }
+
+      return correctStickersCount;
+    }
+
+    function update2DNet() {
+      const faceGrids = {
+        U: Array(9).fill('#111'), D: Array(9).fill('#111'),
+        F: Array(9).fill('#111'), B: Array(9).fill('#111'),
+        L: Array(9).fill('#111'), R: Array(9).fill('#111')
+      };
+
+      cubies.forEach(cubie => {
+        if (cubie.userData.isCenterCore) return;
+        const pos = cubie.position;
+        const x = Math.round(pos.x);
+        const y = Math.round(pos.y);
+        const z = Math.round(pos.z);
+
+        MATERIAL_NORMALS.forEach(matInfo => {
+          const init = cubie.userData.initialPos;
+          const hasSticker = (
+            (matInfo.face === 'R' && init.x === 1) ||
+            (matInfo.face === 'L' && init.x === -1) ||
+            (matInfo.face === 'U' && init.y === 1) ||
+            (matInfo.face === 'D' && init.y === -1) ||
+            (matInfo.face === 'F' && init.z === 1) ||
+            (matInfo.face === 'B' && init.z === -1)
+          );
+
+          if (hasSticker) {
+            const worldNorm = matInfo.normal.clone().applyQuaternion(cubie.quaternion);
+            const colorHex = CSS_COLORS[matInfo.face];
+
+            if (worldNorm.dot(FACE_NORMALS.U) > 0.8 && y === 1) faceGrids.U[(z + 1) * 3 + (x + 1)] = colorHex;
+            else if (worldNorm.dot(FACE_NORMALS.D) > 0.8 && y === -1) faceGrids.D[(1 - z) * 3 + (x + 1)] = colorHex;
+            else if (worldNorm.dot(FACE_NORMALS.F) > 0.8 && z === 1) faceGrids.F[(1 - y) * 3 + (x + 1)] = colorHex;
+            else if (worldNorm.dot(FACE_NORMALS.B) > 0.8 && z === -1) faceGrids.B[(1 - y) * 3 + (1 - x)] = colorHex;
+            else if (worldNorm.dot(FACE_NORMALS.L) > 0.8 && x === -1) faceGrids.L[(1 - y) * 3 + (z + 1)] = colorHex;
+            else if (worldNorm.dot(FACE_NORMALS.R) > 0.8 && x === 1) faceGrids.R[(1 - y) * 3 + (1 - z)] = colorHex;
+          }
+        });
+      });
+
+      Object.keys(faceGrids).forEach(faceKey => {
+        const netContainer = document.getElementById(`net-${faceKey}`);
+        if (!netContainer) return;
+        const tiles = netContainer.querySelectorAll('.net-tile');
+        const colors = faceGrids[faceKey];
+        tiles.forEach((tile, i) => {
+          tile.style.backgroundColor = colors[i] || '#111';
+        });
+      });
+    }
+
+    // =========================================================================
+    // 6. GERENCIADOR DE INPUTS E SESSÃO EM TEMPO REAL
+    // =========================================================================
+    let currentMoveList = [];
+    let totalClicks = 0;
+    let activeSessionId = null;
+    let pollingIntervalId = null;
+    let lastRenderedLogCount = 0;
+
+    const sequenceTextarea = document.getElementById('sequence-textarea');
+    const toggleOptimizer = document.getElementById('toggle-optimizer');
+    const toggleCompact = document.getElementById('toggle-compact');
+    const rawCountLabel = document.getElementById('raw-count-label');
+    const reductionBadge = document.getElementById('reduction-badge');
+    const toast = document.getElementById('toast');
+
+    // Inputs de resolver_cubo_incremental
+    const inputEmbaralhamento = document.getElementById('input-embaralhamento');
+    const inputMutacao = document.getElementById('input-mutacao');
+    const inputCruzamento = document.getElementById('input-cruzamento');
+    const inputSelecao = document.getElementById('input-selecao');
+    const inputGeracoes = document.getElementById('input-geracoes');
+    const inputPopulacao = document.getElementById('input-populacao');
+    const inputTamMin = document.getElementById('input-tam-min');
+    const inputTamMax = document.getElementById('input-tam-max');
+    const inputCiclo = document.getElementById('input-ciclo');
+
+    // Elementos de Monitoramento em Tempo Real
+    const cardMonitoring = document.getElementById('card-monitoring');
+    const liveTimer = document.getElementById('live-timer');
+    const liveProgressBar = document.getElementById('live-progress-bar');
+    const liveEtapa = document.getElementById('live-etapa');
+    const liveGeracao = document.getElementById('live-geracao');
+    const liveAvaliados = document.getElementById('live-avaliados');
+    const liveScore = document.getElementById('live-score');
+    const liveMelhorSolucao = document.getElementById('live-melhor-solucao');
+    const terminalLogs = document.getElementById('terminal-logs');
+    const btnCancelAg = document.getElementById('btn-cancel-ag');
+
+    const btnSolveAg = document.getElementById('btn-solve-ag');
+    const agBtnIcon = document.getElementById('ag-btn-icon');
+    const agBtnText = document.getElementById('ag-btn-text');
+    const agResultBox = document.getElementById('ag-result-box');
+    const agResultTitle = document.getElementById('ag-result-title');
+    const agResultTime = document.getElementById('ag-result-time');
+    const agResultMoves = document.getElementById('ag-result-moves');
+    const agResultScore = document.getElementById('ag-result-score');
+    const agResultChrom = document.getElementById('ag-result-chrom');
+
+    function updateSequenceDisplay() {
+      const isOptimized = toggleOptimizer.checked;
+      const isCompact = toggleCompact.checked;
+
+      let displayMoves = isOptimized ? optimizeMoves(currentMoveList) : currentMoveList;
+      if (isOptimized) currentMoveList = displayMoves;
+
+      const seqString = movesToString(displayMoves, !isCompact);
+      sequenceTextarea.value = seqString;
+      inputEmbaralhamento.value = movesToString(displayMoves, true);
+
+      const optCount = displayMoves.length;
+      rawCountLabel.textContent = `${optCount} movs (Total: ${totalClicks})`;
+
+      if (totalClicks > 0 && isOptimized && optCount < totalClicks) {
+        const pct = Math.round(((totalClicks - optCount) / totalClicks) * 100);
+        reductionBadge.textContent = `-${pct}% (${totalClicks - optCount} reduções)`;
+        reductionBadge.style.display = 'inline-block';
+      } else {
+        reductionBadge.style.display = 'none';
+      }
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    document.getElementById('btn-reset-defaults').addEventListener('click', () => {
+      inputMutacao.value = "0.05";
+      inputCruzamento.value = "0.70";
+      inputSelecao.value = "0.50";
+      inputGeracoes.value = "2000";
+      inputPopulacao.value = "1000";
+      inputTamMin.value = "1";
+      inputTamMax.value = "54";
+      inputCiclo.value = "500";
+      showToast("Valores restaurados para o padrão!");
+    });
+
+    // =========================================================================
+    // 7. MONITORAMENTO EM TEMPO REAL VIA SESSÃO (POLLING AJAX DE 1 EM 1 SEGUNDO /status)
+    // =========================================================================
+    async function startSessionPolling(sessionId, maxGens, tamMin, tamMax) {
+      if (pollingIntervalId) clearInterval(pollingIntervalId);
+      lastRenderedLogCount = 0;
+      terminalLogs.innerHTML = '';
+
+      const consultarStatus = async () => {
+        try {
+          const res = await fetch(`/status/${sessionId}`);
+          if (!res.ok) return;
+
+          const data = await res.json();
+          renderSessionProgress(data, maxGens, tamMin, tamMax);
+
+          if (data.status === 'concluido' || data.status === 'cancelado' || data.status === 'erro') {
+            clearInterval(pollingIntervalId);
+            finalizeSession(data);
+          }
+        } catch (e) {
+          // Erro silencioso temporário de rede
+        }
+      };
+
+      consultarStatus();
+      // Consulta dinamicamente de 1 em 1 segundo (1000ms)
+      pollingIntervalId = setInterval(consultarStatus, 1000);
+    }
+
+    function renderSessionProgress(data, maxGens, tamMin, tamMax) {
+      liveTimer.textContent = `${data.tempo_decorrido || 0}s`;
+      liveEtapa.textContent = data.etapa || 'Processando...';
+      liveGeracao.textContent = `${data.geracao_atual || 0} / ${data.total_geracoes || maxGens}`;
+      liveAvaliados.textContent = Number(data.individuos_avaliados || 0).toLocaleString('pt-BR');
+      liveScore.textContent = `${data.melhor_score || 0} / 54`;
+
+      const opTextEl = document.getElementById('live-operacao-text');
+      if (opTextEl) {
+        const op = data.operacao || 'Processando...';
+        let icon = '🔄';
+        if (op.toLowerCase().includes('cruzamento')) icon = '🔀';
+        else if (op.toLowerCase().includes('muta')) icon = '⚡';
+        else if (op.toLowerCase().includes('criando') || op.toLowerCase().includes('indiv')) icon = '🧬';
+        else if (op.toLowerCase().includes('fitness') || op.toLowerCase().includes('avali')) icon = '📊';
+        opTextEl.textContent = `${icon} ${op}`;
+      }
+
+      const solStr = data.melhor_solucao_str || (data.melhor_solucao ? data.melhor_solucao.join(' ') : '--');
+      liveMelhorSolucao.textContent = solStr || '--';
+
+      let pct = 0;
+      if (data.status === 'concluido') {
+        pct = 100;
+      } else if (data.total_geracoes > 0) {
+        pct = Math.min(95, Math.round((data.geracao_atual / data.total_geracoes) * 100));
+      }
+      liveProgressBar.style.width = `${pct}%`;
+
+      if (data.mensagens && data.mensagens.length > lastRenderedLogCount) {
+        for (let i = lastRenderedLogCount; i < data.mensagens.length; i++) {
+          const lineEl = document.createElement('div');
+          lineEl.className = 'terminal-line';
+          if (data.mensagens[i].includes('Score 54/54') || data.mensagens[i].includes('Sucesso')) {
+            lineEl.classList.add('success');
+          }
+          lineEl.textContent = data.mensagens[i];
+          terminalLogs.appendChild(lineEl);
+        }
+        lastRenderedLogCount = data.mensagens.length;
+        terminalLogs.scrollTop = terminalLogs.scrollHeight;
+      }
+    }
+
+    function finalizeSession(data) {
+      btnSolveAg.disabled = false;
+      agBtnIcon.innerHTML = '🧬';
+      agBtnText.textContent = "Iniciar Solução com Algoritmo Genético";
+      btnCancelAg.style.display = 'none';
+
+      const statusBadge = document.getElementById('status-badge');
+      const statusText = document.getElementById('status-text');
+
+      if (data.status === 'concluido' && data.resultado_final && data.resultado_final.sucesso) {
+        statusBadge.className = 'status-badge';
+        statusText.textContent = 'Cubo Resolvido (100%)';
+
+        agResultBox.style.display = 'flex';
+        agResultTitle.textContent = "Solução Ótima Encontrada!";
+        agResultTitle.style.color = 'var(--accent-emerald)';
+        agResultScore.textContent = `Score: ${data.resultado_final.score}/54 (100%)`;
+        agResultChrom.textContent = `Cromossomo: ${data.resultado_final.tamanho_cromossomo} movimento(s)`;
+
+        const solutionStr = data.resultado_final.solucao_str || (data.resultado_final.solucao ? data.resultado_final.solucao.join(' ') : "");
+        agResultMoves.textContent = solutionStr || "(Nenhum movimento necessário)";
+
+        showToast(`Solução encontrada em ${data.tempo_decorrido}s! Executando visualmente no Cubo 3D...`);
+
+        if (data.resultado_final.solucao && data.resultado_final.solucao.length > 0) {
+          const parsed = parseMoveString(solutionStr);
+          parsed.forEach(m => queueMove(m.face, m.amount));
+
+          onQueueEmptyCallback = () => {
+            currentMoveList = [];
+            totalClicks = 0;
+            updateSequenceDisplay();
+            showToast("Cubo resolvido com sucesso pelo Algoritmo Genético!");
+            if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+          };
+        }
+      } else if (data.status === 'cancelado') {
+        statusBadge.className = 'status-badge scrambled';
+        statusText.textContent = 'Execução Cancelada';
+        showToast("Execução interrompida pelo usuário.");
+      } else {
+        statusBadge.className = 'status-badge scrambled';
+        statusText.textContent = 'Limite Atingido';
+        agResultBox.style.display = 'flex';
+        agResultTitle.textContent = "Melhor Solução Parcial";
+        agResultTitle.style.color = 'var(--accent-amber)';
+        agResultScore.textContent = `Score Atingido: ${data.melhor_score || 0}/54`;
+        agResultChrom.textContent = `Tamanho: ${data.tamanho_atual || 0} movs`;
+        agResultMoves.textContent = data.melhor_solucao_str || "Limite de gerações atingido sem resolver 100%.";
+        showToast("Algoritmo finalizado sem atingir 100%.");
+      }
+
+      updateSolvedScore();
+    }
+
+    // Botão Iniciar Solução (Dispara Sessão Assíncrona)
+    btnSolveAg.addEventListener('click', async () => {
+      let scrambleMoves = parseMoveString(inputEmbaralhamento.value.trim());
+      if (scrambleMoves.length === 0 && currentMoveList.length > 0) {
+        scrambleMoves = currentMoveList;
+      }
+
+      const stickersScore = updateSolvedScore();
+      if (stickersScore === 54 && scrambleMoves.length === 0) {
+        showToast("O cubo já está 100% resolvido!");
+        if (typeof confetti === 'function') confetti({ particleCount: 50, spread: 60 });
+        return;
+      }
+
+      activeSessionId = `session_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+      const payload = {
+        session_id: activeSessionId,
+        embaralhamento: movesToArrayOfStrings(scrambleMoves),
+        porcentagem_mutacao: parseFloat(inputMutacao.value) || 0.05,
+        porcentagem_cruzamento: parseFloat(inputCruzamento.value) || 0.70,
+        porcentagem_selecao: parseFloat(inputSelecao.value) || 0.50,
+        quantidade_geracoes: parseInt(inputGeracoes.value, 10) || 2000,
+        quantidade_individuos_inicial: parseInt(inputPopulacao.value, 10) || 1000,
+        tamanho_minimo: parseInt(inputTamMin.value, 10) || 1,
+        tamanho_maximo: parseInt(inputTamMax.value, 10) || 54,
+        intervalo_ciclo: parseInt(inputCiclo.value, 10) || 500
+      };
+
+      cardMonitoring.style.display = 'flex';
+      btnCancelAg.style.display = 'flex';
+      btnSolveAg.disabled = true;
+      agBtnIcon.innerHTML = '<span class="spinner"></span>';
+      agBtnText.textContent = "Sessão Ativa no Servidor...";
+
+      const statusBadge = document.getElementById('status-badge');
+      const statusText = document.getElementById('status-text');
+      statusBadge.className = 'status-badge solving';
+      statusText.textContent = "IA Evoluindo Populações...";
+
+      try {
+        const response = await fetch('/iniciar_solucao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok && data.session_id) {
+          activeSessionId = data.session_id;
+          startSessionPolling(activeSessionId, payload.quantidade_geracoes, payload.tamanho_minimo, payload.tamanho_maximo);
+        } else {
+          showToast("Erro ao iniciar sessão no servidor.");
+          btnSolveAg.disabled = false;
+        }
+      } catch (err) {
+        showToast(`Erro na comunicação AJAX: ${err.message}`);
+        btnSolveAg.disabled = false;
+      }
+    });
+
+    // Botão Cancelar Sessão
+    btnCancelAg.addEventListener('click', async () => {
+      if (!activeSessionId) return;
+      try {
+        await fetch('/cancelar_solucao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: activeSessionId })
+        });
+        showToast("Solicitação de cancelamento enviada...");
+      } catch (err) {
+        showToast("Erro ao enviar cancelamento.");
+      }
+    });
+
+    // =========================================================================
+    // 8. CONTROLES DO CUBO & ATALHOS
+    // =========================================================================
+    document.querySelectorAll('.move-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const moveCode = btn.getAttribute('data-move');
+        const parsed = parseMoveString(moveCode);
+        if (parsed.length > 0) {
+          const move = parsed[0];
+          totalClicks++;
+          currentMoveList.push(move);
+          updateSequenceDisplay();
+          queueMove(move.face, move.amount);
+        }
+      });
+    });
+
+    toggleOptimizer.addEventListener('change', () => {
+      updateSequenceDisplay();
+      showToast(toggleOptimizer.checked ? 'Otimização Algébrica Ativada' : 'Modo Bruto');
+    });
+
+    toggleCompact.addEventListener('change', updateSequenceDisplay);
+
+    sequenceTextarea.addEventListener('input', () => {
+      currentMoveList = parseMoveString(sequenceTextarea.value);
+      totalClicks = currentMoveList.length;
+      inputEmbaralhamento.value = movesToString(currentMoveList, true);
+      rawCountLabel.textContent = `${currentMoveList.length} movs`;
+    });
+
+    document.getElementById('btn-play-seq').addEventListener('click', () => {
+      const moves = parseMoveString(sequenceTextarea.value);
+      if (moves.length === 0) return showToast('Nenhuma sequência para executar');
+      moves.forEach(m => queueMove(m.face, m.amount));
+      showToast(`Executando ${moves.length} movimentos...`);
+    });
+
+    document.getElementById('btn-invert-seq').addEventListener('click', () => {
+      const currentMoves = parseMoveString(sequenceTextarea.value);
+      if (currentMoves.length === 0) return showToast('Nenhuma sequência para inverter');
+      const inverted = invertMoveSequence(currentMoves);
+      inverted.forEach(m => queueMove(m.face, m.amount));
+      currentMoveList = [];
+      totalClicks = 0;
+      updateSequenceDisplay();
+      showToast('Sequência inversa executada!');
+    });
+
+    document.getElementById('btn-copy-seq').addEventListener('click', () => {
+      const text = sequenceTextarea.value;
+      if (!text) return showToast('Textarea vazio');
+      navigator.clipboard.writeText(text).then(() => showToast('📋 Sequência copiada!'));
+    });
+
+    document.getElementById('btn-clear-seq').addEventListener('click', () => {
+      currentMoveList = [];
+      totalClicks = 0;
+      updateSequenceDisplay();
+      showToast('Sequência limpa');
+    });
+
+    // Embaralhar Oficial com 25 movimentos randômicos não redundantes (> 20)
+    document.getElementById('btn-scramble').addEventListener('click', () => {
+      const count = 25;
+      const faces = ['U', 'D', 'F', 'B', 'L', 'R'];
+      const amounts = [1, 2, 3];
+      const scrambleMoves = [];
+      let lastFace = '';
+      let secondLastFace = '';
+
+      for (let i = 0; i < count; i++) {
+        let face;
+        do {
+          face = faces[Math.floor(Math.random() * faces.length)];
+        } while (
+          face === lastFace ||
+          (face === secondLastFace && OPPOSITE_FACES[face] === lastFace)
+        );
+        secondLastFace = lastFace;
+        lastFace = face;
+
+        const amount = amounts[Math.floor(Math.random() * amounts.length)];
+        scrambleMoves.push({ face, amount });
+      }
+
+      currentMoveList.push(...scrambleMoves);
+      totalClicks += scrambleMoves.length;
+      updateSequenceDisplay();
+      scrambleMoves.forEach(m => queueMove(m.face, m.amount));
+      showToast(`🎲 Embaralhado com ${count} movimentos randômicos!`);
+    });
+
+    document.getElementById('btn-reset-cube').addEventListener('click', () => {
+      moveQueue.length = 0;
+      isAnimating = false;
+      currentMoveList = [];
+      totalClicks = 0;
+      wasManipulated = false;
+      buildRubiksCube();
+      updateSequenceDisplay();
+      agResultBox.style.display = 'none';
+      cardMonitoring.style.display = 'none';
+      showToast('↺ Cubo resetado para estado resolvido');
+    });
+
+    document.getElementById('btn-reset-cam').addEventListener('click', () => {
+      camera.position.set(5.2, 4.4, 6.2);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      showToast('Câmera centralizada');
+    });
+
+    const btnToggleNet = document.getElementById('btn-toggle-net');
+    const flatNetWidget = document.getElementById('flat-net-widget');
+    btnToggleNet.addEventListener('click', () => {
+      flatNetWidget.classList.toggle('minimized');
+      btnToggleNet.classList.toggle('active');
+    });
+
+    const btnSpeedToggle = document.getElementById('btn-speed-toggle');
+    const speedLabel = document.getElementById('speed-label');
+    btnSpeedToggle.addEventListener('click', () => {
+      currentSpeedIdx = (currentSpeedIdx + 1) % SPEEDS.length;
+      speedLabel.textContent = SPEEDS[currentSpeedIdx].name;
+      showToast(`Velocidade: ${SPEEDS[currentSpeedIdx].name}`);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement === sequenceTextarea || document.activeElement.tagName === 'INPUT') return;
+      const key = e.key.toUpperCase();
+      if (['U', 'D', 'F', 'B', 'L', 'R'].includes(key)) {
+        let amount = 1;
+        if (e.shiftKey) amount = 3;
+        if (e.altKey) amount = 2;
+        const move = { face: key, amount };
+        totalClicks++;
+        currentMoveList.push(move);
+        updateSequenceDisplay();
+        queueMove(move.face, move.amount);
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      init3D();
+      updateSequenceDisplay();
+    });
+  </script>
+</body>
+</html>
