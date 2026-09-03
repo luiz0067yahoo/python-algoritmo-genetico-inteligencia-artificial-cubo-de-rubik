@@ -17,7 +17,7 @@ import time
 import uuid
 from flask import Flask, request, render_template, jsonify, session
 from flask_cors import CORS
-from geracao import resolver_cubo_incremental
+from geracao import resolver_cubo_incremental, obter_informacoes_hardware
 
 # Inicialização da aplicação Flask
 app = Flask(__name__, template_folder='.', static_folder='.')
@@ -155,6 +155,8 @@ def iniciar_solucao():
         'intervalo_ciclo': max(1, int(dados.get('intervalo_ciclo', 500))),
     }
 
+    info_hardware = obter_informacoes_hardware()
+
     # Inicializa o snapshot de progresso da sessão
     with LOCK_SESSAO:
         SESSOES_PROGRESSO[session_id] = {
@@ -163,13 +165,17 @@ def iniciar_solucao():
             'etapa': 'Iniciando Algoritmo Genético...',
             'operacao': 'Criando indivíduos',
             'tamanho_atual': payload['tamanho_minimo'],
+            'tamanho_cromossomo': payload['tamanho_minimo'],
+            'cromossomos_populacao': payload['quantidade_individuos_inicial'],
+            'cromossomos_avaliados': 0,
             'geracao_atual': 0,
             'total_geracoes': payload['quantidade_geracoes'],
             'individuos_avaliados': 0,
             'melhor_score': 0,
             'melhor_solucao': [],
             'melhor_solucao_str': '',
-            'mensagens': [f"[{time.strftime('%H:%M:%S')}] Sessão iniciada. Parâmetros configurados."],
+            'hardware': info_hardware,
+            'mensagens': [f"[{time.strftime('%H:%M:%S')}] Sessão iniciada ({info_hardware['cpu_nome']} - {info_hardware['threads_totais']} threads)."],
             'resultado_final': None,
             'cancelado': False,
             'timestamp_inicio': time.time(),
@@ -183,8 +189,15 @@ def iniciar_solucao():
         'sucesso': True,
         'session_id': session_id,
         'status': 'executando',
+        'hardware': info_hardware,
         'mensagem': 'Processamento do Algoritmo Genético iniciado com sucesso.'
     }), 200
+
+
+@app.route('/info_hardware', methods=['GET'])
+def info_hardware_endpoint():
+    """Retorna as especificações de hardware da máquina atual (processador, núcleos e threads)."""
+    return jsonify(obter_informacoes_hardware()), 200
 
 
 @app.route('/status', methods=['GET'])

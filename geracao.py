@@ -271,6 +271,40 @@ def _worker_ilha_paralela(args):
     }
 
 
+def obter_informacoes_hardware():
+    """
+    Coleta informações detalhadas do hardware do sistema (processador, núcleos e threads).
+    Identifica com precisão modelos como AMD Ryzen™ 7 PRO 8700GE e a quantidade de threads lógicas.
+
+    Retorno:
+        dict: Dicionário contendo nome da CPU, total de threads e modo de execução.
+    """
+    cpu_nome = "Processador Multi-Core"
+    threads_totais = os.cpu_count() or 1
+
+    # Tentativa de leitura precisa do nome da CPU via Registro do Windows (sem dependências externas)
+    try:
+        import winreg
+        chave = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+        valor, _ = winreg.QueryValueEx(chave, "ProcessorNameString")
+        winreg.CloseKey(chave)
+        if valor and valor.strip():
+            cpu_nome = valor.strip()
+    except Exception:
+        try:
+            import platform
+            cpu_nome = platform.processor() or platform.machine() or "CPU Multi-Core"
+        except Exception:
+            pass
+
+    return {
+        "cpu_nome": cpu_nome,
+        "threads_totais": threads_totais,
+        "threads_utilizadas": threads_totais,
+        "modo": f"Processamento Paralelo Multi-Core ({threads_totais} Ilhas Simultâneas)" if threads_totais > 1 else "Sequencial",
+    }
+
+
 def rodar_algoritmo_genetico(
     porcentagem_mutacao=0.05,
     porcentagem_cruzamento=0.70,
@@ -291,9 +325,9 @@ def rodar_algoritmo_genetico(
 
     Estratégia:
     - Para espaços pequenos (<= 4000), executa Busca Exaustiva determinística direta.
-    - Para populações grandes (>= 300) e múltiplos núcleos de CPU disponíveis, utiliza
+    - Para populações grandes e múltiplos núcleos de CPU disponíveis, utiliza
       o Modelo de Ilhas Paralelo com migração entre épocas, distribuindo o esforço
-      entre os núcleos e maximizando a diversidade genética.
+      em 100% dos núcleos de hardware (ex: 16 threads do AMD Ryzen 7 PRO 8700GE).
     - Caso contrário, executa o loop evolutivo sequencial ultra-otimizado com cache em memória.
 
     Parâmetros:
@@ -301,9 +335,9 @@ def rodar_algoritmo_genetico(
         porcentagem_cruzamento (float): Taxa de cruzamento entre pais.
         porcentagem_selecao (float): Taxa de seleção dos melhores indivíduos.
         quantidade_geracoes (int): Total de gerações a evoluir.
-        quantidade_individuos_inicial (int): Tamanho da população total.
+        quantidade_individuos_inicial (int): Tamanho da população total (cromossomos por geração).
         embaralhamento (list[str]): Sequência de embaralhamento.
-        tamanho_cromossomo (int): Quantidade de movimentos do cromossomo.
+        tamanho_cromossomo (int): Quantidade de movimentos/genes do cromossomo.
         intervalo_ciclo (int): Frequência de notificações e logs.
         limite_busca_exaustiva (int): Limiar para chavear para busca exaustiva.
         callback_progresso (callable, opcional): Função de atualização em tempo real.
@@ -324,6 +358,7 @@ def rodar_algoritmo_genetico(
 
     espaco_busca = calcular_espaco_busca(tamanho_cromossomo)
     cache_fitness = {}
+    info_hw = obter_informacoes_hardware()
 
     # Caso 1: Espaço de busca pequeno -> Busca Exaustiva Direta
     if espaco_busca <= limite_busca_exaustiva:
@@ -338,26 +373,128 @@ def rodar_algoritmo_genetico(
         )
 
     pop_size = min(quantidade_individuos_inicial, espaco_busca)
-    num_cpus = os.cpu_count() or 1
+    num_cpus = info_hw["threads_totais"]
 
-    # Decide se o processamento paralelo em ilhas é vantajoso
-    usar_paralelo = (num_cpus > 1) and (pop_size >= 300) and (quantidade_geracoes >= 40)
-    num_ilhas = min(num_cpus, 8, max(2, pop_size // 100)) if usar_paralelo else 1
+    # Utiliza 100% de todas as threads lógicas da CPU (ex: 16 threads do Ryzen 7 PRO 8700GE)
+    usar_paralelo = (num_cpus > 1) and (pop_size >= 160) and (quantidade_geracoes >= 20)
+    num_ilhas = min(num_cpus, max(2, pop_size // 20)) if usar_paralelo else 1
+    pop_por_ilha = max(10, pop_size // num_ilhas)
+    qtd_elite_total = max(1, round(pop_size * 0.05))
 
     if callback_progresso:
-        modo_str = f"Multi-Core ({num_ilhas} Ilhas Paralelas)" if usar_paralelo else "Sequencial Otimizado"
+        modo_str = f"Multi-Core ({num_ilhas} Ilhas / {num_cpus} Threads)" if usar_paralelo else "Sequencial Otimizado"
         callback_progresso({
-            "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo} - Modo {modo_str})",
+            "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo} genes - {modo_str})",
             "operacao": "Criando indivíduos",
             "tamanho_atual": tamanho_cromossomo,
+            "tamanho_cromossomo": tamanho_cromossomo,
+            "cromossomos_populacao": pop_size,
+            "cromossomos_por_ilha": pop_por_ilha if usar_paralelo else pop_size,
+            "cromossomos_elite": qtd_elite_total,
             "geracao_atual": 0,
             "total_geracoes": quantidade_geracoes,
             "individuos_avaliados": total_avaliados_base,
+            "cromossomos_avaliados": total_avaliados_base,
             "melhor_score": 0,
             "melhor_solucao": [],
             "melhor_solucao_str": "",
-            "mensagem": f"Criando indivíduos: População inicial de {pop_size} indivíduos gerada ({modo_str}).",
+            "hardware": info_hw,
+            "mensagem": f"Criando {pop_size:,} cromossomos de tamanho {tamanho_cromossomo} ({modo_str} em {info_hw['cpu_nome']}).",
         })
+
+    # ==========================================================================
+    # RAMO A: EXECUÇÃO PARALELA MULTI-CORE (MODELO DE ILHAS COM MIGRAÇÃO)
+    # ==========================================================================
+    if usar_paralelo:
+        ilhas_pop = [gerar_populacao(pop_por_ilha, tamanho_cromossomo) for _ in range(num_ilhas)]
+
+        melhor_solucao_global = None
+        melhor_score_global = -1
+        total_avaliados_etapa = 0
+
+        # Divide as gerações em épocas de migração (ex: blocos de 20 a 50 gerações)
+        epocas = max(1, min(20, quantidade_geracoes // 25))
+        geracoes_por_epoca = max(1, quantidade_geracoes // epocas)
+        geracao_acumulada = 0
+
+        try:
+            with ProcessPoolExecutor(max_workers=num_ilhas) as executor:
+                for epoca in range(1, epocas + 1):
+                    if is_cancelled and is_cancelled():
+                        break
+
+                    # Prepara tarefas para cada ilha
+                    tarefas = []
+                    tempo_base_ms = int(time.time() * 1000)
+                    for i in range(num_ilhas):
+                        seed_i = tempo_base_ms + (i * 997) + (epoca * 10007)
+                        tarefas.append((
+                            i,
+                            ilhas_pop[i],
+                            estado_base,
+                            geracoes_por_epoca,
+                            porcentagem_mutacao,
+                            porcentagem_cruzamento,
+                            porcentagem_selecao,
+                            seed_i,
+                        ))
+
+                    # Executa a época em paralelo nos 100% dos núcleos de CPU
+                    resultados_epoca = list(executor.map(_worker_ilha_paralela, tarefas))
+
+                    geracao_acumulada += geracoes_por_epoca
+
+                    # Processa os resultados das ilhas
+                    elites_migracao = []
+                    for res in resultados_epoca:
+                        total_avaliados_etapa += res["avaliados"]
+                        ilhas_pop[res["island_id"]] = res["populacao_final"]
+
+                        if res["melhor_score"] > melhor_score_global:
+                            melhor_score_global = res["melhor_score"]
+                            melhor_solucao_global = res["melhor_solucao"]
+
+                        if res["melhor_solucao"]:
+                            elites_migracao.append(res["melhor_solucao"])
+
+                    # Notificação periódica para o callback de progresso
+                    if callback_progresso:
+                        sol_str = " ".join(melhor_solucao_global) if melhor_solucao_global else ""
+                        callback_progresso({
+                            "etapa": f"Algoritmo Genético Multi-Core ({num_ilhas} Ilhas Ativas) - Geração {min(geracao_acumulada, quantidade_geracoes)}/{quantidade_geracoes}",
+                            "operacao": "Avaliando fitness (Paralelo)",
+                            "tamanho_atual": tamanho_cromossomo,
+                            "tamanho_cromossomo": tamanho_cromossomo,
+                            "cromossomos_populacao": pop_size,
+                            "cromossomos_por_ilha": pop_por_ilha,
+                            "cromossomos_elite": qtd_elite_total,
+                            "geracao_atual": min(geracao_acumulada, quantidade_geracoes),
+                            "total_geracoes": quantidade_geracoes,
+                            "individuos_avaliados": total_avaliados_base + total_avaliados_etapa,
+                            "cromossomos_avaliados": total_avaliados_base + total_avaliados_etapa,
+                            "melhor_score": melhor_score_global,
+                            "melhor_solucao": melhor_solucao_global or [],
+                            "melhor_solucao_str": sol_str,
+                            "hardware": info_hw,
+                            "mensagem": f"Geração {min(geracao_acumulada, quantidade_geracoes)}/{quantidade_geracoes}: Score {melhor_score_global}/54 | {pop_size} cromossomos ({num_ilhas} threads) | Total: {(total_avaliados_base + total_avaliados_etapa):,}",
+                        })
+
+                    # Condição de parada imediata: Cubo 100% resolvido
+                    if melhor_score_global == 54:
+                        break
+
+                    # Migração de Elites: Injeta os melhores indivíduos nas outras ilhas
+                    if len(elites_migracao) > 1:
+                        for i in range(num_ilhas):
+                            vizinho = (i + 1) % num_ilhas
+                            if ilhas_pop[i] and elites_migracao[vizinho]:
+                                ilhas_pop[i][-1] = list(elites_migracao[vizinho])
+
+            return melhor_solucao_global, melhor_score_global, total_avaliados_etapa
+
+        except Exception:
+            # Fallback seguro para execução sequencial caso haja erro de processo
+            pass
 
     # ==========================================================================
     # RAMO A: EXECUÇÃO PARALELA MULTI-CORE (MODELO DE ILHAS COM MIGRAÇÃO)

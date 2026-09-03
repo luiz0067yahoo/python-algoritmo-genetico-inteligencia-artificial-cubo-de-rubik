@@ -25,7 +25,8 @@ Um sistema completo de Inteligência Artificial e Computação Evolutiva para re
 ## 🚀 Destaques do Projeto
 
 - **Motor de Permutação Direta $O(1)$**: Substituição de simulações orientadas a objetos por permutações de 54 adesivos em memória, elevando a velocidade de avaliação de ~310 para mais de **400.000 avaliações por segundo**.
-- **Processamento Paralelo Multi-Core (Modelo de Ilhas)**: Distribui subpopulações independentes em múltiplos núcleos de CPU com migração periódica de elites.
+- **Processamento Paralelo Multi-Core Dinâmico (100% de Hardware)**: Detecção automática do processador do sistema (ex: **AMD Ryzen™ 7 PRO 8700GE** com 8 núcleos e 16 threads), alocando **16 ilhas paralelas de evolução simultânea** com migração periódica de elites.
+- **Métricas Completas de Cromossomos no Dashboard**: Exibição em tempo real da quantidade de cromossomos por geração (população ativa), comprimento do cromossomo (genes/movimentos), cromossomos de elite preservados e total acumulado avaliado.
 - **Conformidade Oficial WCA**: Gerador de embaralhamento oficial segundo o Regulamento Internacional da *World Cube Association* (Artigo 12 / Regulação 4b).
 - **Interface 3D Interativa**: Renderização com Three.js, iluminação realista, planificação 2D em tempo real e animação passo a passo da solução encontrada.
 - **Resolução Incremental Automática**: Testa progressivamente comprimentos de cromossomo de 1 a 54 movimentos com busca exaustiva instantânea para espaços pequenos ($< 0.02s$).
