@@ -1283,6 +1283,14 @@
             <span id="ag-result-score">Score: 54/54</span>
             <span id="ag-result-chrom">Cromossomo: 0 movs</span>
           </div>
+          <div style="display: flex; gap: 0.45rem; margin-top: 0.4rem;">
+            <button type="button" id="btn-replay-solution" class="btn btn-primary" style="flex: 1; font-size: 0.78rem; padding: 0.5rem; justify-content: center;">
+              ▶ Executar no Cubo 3D
+            </button>
+            <button type="button" id="btn-reapply-scramble" class="btn btn-secondary" style="flex: 1; font-size: 0.78rem; padding: 0.5rem; justify-content: center;">
+              ↺ Reembaralhar
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1410,7 +1418,7 @@
         </div>
 
         <div class="quick-actions">
-          <button id="btn-scramble" class="btn btn-secondary">🎲 Embaralhar (25x)</button>
+          <button id="btn-scramble" class="btn btn-secondary" title="Gerar sequência oficial WCA de 25 movimentos">🎲 Embaralhar Oficial (WCA 25x)</button>
           <button id="btn-reset-cube" class="btn btn-secondary">↺ Resetar Cubo</button>
         </div>
       </div>
@@ -2107,6 +2115,67 @@
       }
     }
 
+    let lastSolvedData = null;
+
+    // =========================================================================
+    // GERADOR OFICIAL DE EMBARALHAMENTO WCA (WORLD CUBE ASSOCIATION)
+    // =========================================================================
+    function generateWcaScramble(length = 25) {
+      const faces = ['U', 'D', 'F', 'B', 'L', 'R'];
+      const amounts = [1, 2, 3]; // 1: normal (90°), 2: duplo (180°), 3: linha/inverso (90° CCW)
+      const scrambleMoves = [];
+      let lastFace = null;
+      let secondLastFace = null;
+
+      for (let i = 0; i < length; i++) {
+        const availableFaces = faces.filter(face => {
+          // Regra 1: Evitar a mesma face consecutiva
+          if (face === lastFace) return false;
+          // Regra 2: Evitar faces opostas intercaladas (ex: U D U)
+          if (secondLastFace && face === secondLastFace && OPPOSITE_FACES[face] === lastFace) return false;
+          return true;
+        });
+
+        const chosenFace = availableFaces[Math.floor(Math.random() * availableFaces.length)];
+        const chosenAmount = amounts[Math.floor(Math.random() * amounts.length)];
+
+        scrambleMoves.push({ face: chosenFace, amount: chosenAmount });
+        secondLastFace = lastFace;
+        lastFace = chosenFace;
+      }
+
+      return scrambleMoves;
+    }
+
+    // Executa uma sequência de movimentos no Cubo 3D de forma suave e resolve ao final
+    function applySolutionToCube(solutionMoves, onComplete = null) {
+      if (!solutionMoves || solutionMoves.length === 0) {
+        if (onComplete) onComplete();
+        return;
+      }
+      moveQueue.length = 0;
+      solutionMoves.forEach(m => queueMove(m.face, m.amount));
+
+      onQueueEmptyCallback = () => {
+        currentMoveList = [];
+        totalClicks = 0;
+        updateSequenceDisplay();
+        updateSolvedScore();
+        update2DNet();
+
+        const statusBadge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+        statusBadge.className = 'status-badge';
+        statusText.textContent = 'Cubo Resolvido (100%)';
+
+        showToast("🎉 Cubo 100% resolvido com sucesso pelo Algoritmo Genético!");
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        }
+        if (onComplete) onComplete();
+      };
+    }
+
     function finalizeSession(data) {
       btnSolveAg.disabled = false;
       agBtnIcon.innerHTML = '🧬';
@@ -2117,31 +2186,26 @@
       const statusText = document.getElementById('status-text');
 
       if (data.status === 'concluido' && data.resultado_final && data.resultado_final.sucesso) {
-        statusBadge.className = 'status-badge';
-        statusText.textContent = 'Cubo Resolvido (100%)';
+        lastSolvedData = data;
 
         agResultBox.style.display = 'flex';
         agResultTitle.textContent = "Solução Ótima Encontrada!";
         agResultTitle.style.color = 'var(--accent-emerald)';
+        agResultTime.textContent = `${data.tempo_decorrido || 0}s`;
         agResultScore.textContent = `Score: ${data.resultado_final.score}/54 (100%)`;
         agResultChrom.textContent = `Cromossomo: ${data.resultado_final.tamanho_cromossomo} movimento(s)`;
 
         const solutionStr = data.resultado_final.solucao_str || (data.resultado_final.solucao ? data.resultado_final.solucao.join(' ') : "");
         agResultMoves.textContent = solutionStr || "(Nenhum movimento necessário)";
 
-        showToast(`Solução encontrada em ${data.tempo_decorrido}s! Executando visualmente no Cubo 3D...`);
+        showToast(`Solução encontrada em ${data.tempo_decorrido}s! Executando resolução no Cubo 3D...`);
 
+        // Executa a solução no Cubo 3D para deixá-lo 100% resolvido visualmente
         if (data.resultado_final.solucao && data.resultado_final.solucao.length > 0) {
           const parsed = parseMoveString(solutionStr);
-          parsed.forEach(m => queueMove(m.face, m.amount));
-
-          onQueueEmptyCallback = () => {
-            currentMoveList = [];
-            totalClicks = 0;
-            updateSequenceDisplay();
-            showToast("Cubo resolvido com sucesso pelo Algoritmo Genético!");
-            if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-          };
+          applySolutionToCube(parsed);
+        } else {
+          updateSolvedScore();
         }
       } else if (data.status === 'cancelado') {
         statusBadge.className = 'status-badge scrambled';
@@ -2153,6 +2217,7 @@
         agResultBox.style.display = 'flex';
         agResultTitle.textContent = "Melhor Solução Parcial";
         agResultTitle.style.color = 'var(--accent-amber)';
+        agResultTime.textContent = `${data.tempo_decorrido || 0}s`;
         agResultScore.textContent = `Score Atingido: ${data.melhor_score || 0}/54`;
         agResultChrom.textContent = `Tamanho: ${data.tamanho_atual || 0} movs`;
         agResultMoves.textContent = data.melhor_solucao_str || "Limite de gerações atingido sem resolver 100%.";
@@ -2167,6 +2232,7 @@
       let scrambleMoves = parseMoveString(inputEmbaralhamento.value.trim());
       if (scrambleMoves.length === 0 && currentMoveList.length > 0) {
         scrambleMoves = currentMoveList;
+        inputEmbaralhamento.value = movesToString(scrambleMoves, true);
       }
 
       const stickersScore = updateSolvedScore();
@@ -2174,6 +2240,37 @@
         showToast("O cubo já está 100% resolvido!");
         if (typeof confetti === 'function') confetti({ particleCount: 50, spread: 60 });
         return;
+      }
+
+      // Sincroniza o Cubo 3D com o embaralhamento digitado/selecionado se necessário
+      if (scrambleMoves.length > 0 && stickersScore === 54) {
+        moveQueue.length = 0;
+        isAnimating = false;
+        buildRubiksCube();
+        scrambleMoves.forEach(m => {
+          const config = FACE_AXIS_MAP[m.face];
+          if (!config) return;
+          const angleTotal = config.sign * m.amount * (Math.PI / 2);
+          const activeCubies = [];
+          cubies.forEach(cubie => {
+            if (Math.abs(cubie.position[config.axis] - config.layer) < 0.45) activeCubies.push(cubie);
+          });
+          const pivot = new THREE.Group();
+          cubeGroup.add(pivot);
+          activeCubies.forEach(c => pivot.attach(c));
+          pivot.rotation[config.axis] = angleTotal;
+          pivot.updateMatrixWorld(true);
+          activeCubies.forEach(c => {
+            cubeGroup.attach(c);
+            c.position.x = Math.round(c.position.x);
+            c.position.y = Math.round(c.position.y);
+            c.position.z = Math.round(c.position.z);
+            c.updateMatrixWorld(true);
+          });
+          cubeGroup.remove(pivot);
+        });
+        updateSolvedScore();
+        update2DNet();
       }
 
       activeSessionId = `session_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -2238,6 +2335,43 @@
       }
     });
 
+    // Botões Replay da Solução e Reembaralhamento
+    document.getElementById('btn-replay-solution').addEventListener('click', () => {
+      if (!lastSolvedData || !lastSolvedData.resultado_final) {
+        showToast("Nenhuma solução recente registrada para re-executar.");
+        return;
+      }
+      const scrambleMoves = parseMoveString(inputEmbaralhamento.value.trim());
+      const solutionStr = lastSolvedData.resultado_final.solucao_str || (lastSolvedData.resultado_final.solucao ? lastSolvedData.resultado_final.solucao.join(' ') : "");
+      const solutionMoves = parseMoveString(solutionStr);
+
+      // Reseta e reaplica o embaralhamento
+      moveQueue.length = 0;
+      isAnimating = false;
+      buildRubiksCube();
+
+      scrambleMoves.forEach(m => queueMove(m.face, m.amount));
+
+      // Executa a solução em seguida
+      onQueueEmptyCallback = () => {
+        showToast("Executando movimentos da solução no Cubo 3D...");
+        applySolutionToCube(solutionMoves);
+      };
+    });
+
+    document.getElementById('btn-reapply-scramble').addEventListener('click', () => {
+      const scrambleMoves = parseMoveString(inputEmbaralhamento.value.trim());
+      if (scrambleMoves.length === 0) {
+        showToast("Nenhum embaralhamento definido para aplicar.");
+        return;
+      }
+      moveQueue.length = 0;
+      isAnimating = false;
+      buildRubiksCube();
+      scrambleMoves.forEach(m => queueMove(m.face, m.amount));
+      showToast("🎲 Embaralhamento reaplicado no Cubo 3D!");
+    });
+
     // =========================================================================
     // 8. CONTROLES DO CUBO & ATALHOS
     // =========================================================================
@@ -2300,35 +2434,28 @@
       showToast('Sequência limpa');
     });
 
-    // Embaralhar Oficial com 25 movimentos randômicos não redundantes (> 20)
+    // Embaralhar Oficial WCA (25 movimentos randômicos válidos sem redundâncias)
     document.getElementById('btn-scramble').addEventListener('click', () => {
-      const count = 25;
-      const faces = ['U', 'D', 'F', 'B', 'L', 'R'];
-      const amounts = [1, 2, 3];
-      const scrambleMoves = [];
-      let lastFace = '';
-      let secondLastFace = '';
+      // 1. Reseta o estado do cubo para o início limpo
+      moveQueue.length = 0;
+      isAnimating = false;
+      buildRubiksCube();
 
-      for (let i = 0; i < count; i++) {
-        let face;
-        do {
-          face = faces[Math.floor(Math.random() * faces.length)];
-        } while (
-          face === lastFace ||
-          (face === secondLastFace && OPPOSITE_FACES[face] === lastFace)
-        );
-        secondLastFace = lastFace;
-        lastFace = face;
+      // 2. Gera 25 movimentos pelo algoritmo oficial WCA
+      const scrambleMoves = generateWcaScramble(25);
+      currentMoveList = [...scrambleMoves];
+      totalClicks = scrambleMoves.length;
 
-        const amount = amounts[Math.floor(Math.random() * amounts.length)];
-        scrambleMoves.push({ face, amount });
-      }
+      // 3. Atualiza textareas e inputs no padrão oficial WCA
+      const wcaStr = movesToString(scrambleMoves, true);
+      sequenceTextarea.value = wcaStr;
+      inputEmbaralhamento.value = wcaStr;
+      rawCountLabel.textContent = `${scrambleMoves.length} movs (Total: ${totalClicks})`;
+      reductionBadge.style.display = 'none';
 
-      currentMoveList.push(...scrambleMoves);
-      totalClicks += scrambleMoves.length;
-      updateSequenceDisplay();
+      // 4. Executa a animação no Cubo 3D
       scrambleMoves.forEach(m => queueMove(m.face, m.amount));
-      showToast(`🎲 Embaralhado com ${count} movimentos randômicos!`);
+      showToast('🎲 Embaralhamento Oficial WCA (25 movimentos) aplicado!');
     });
 
     document.getElementById('btn-reset-cube').addEventListener('click', () => {

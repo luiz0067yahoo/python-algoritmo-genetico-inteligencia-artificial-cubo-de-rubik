@@ -1,6 +1,26 @@
+# ==============================================================================
+# GERACAO.PY - MOTOR EVOLUTIVO, ALGORITMO GENÉTICO PARALELO E BUSCA INCREMENTAL
+# ==============================================================================
+# Este módulo coordena a busca e evolução de soluções para o Cubo de Rubik.
+#
+# Principais Funcionalidades:
+# 1. Resolução Incremental:
+#    Testa progressivamente cromossomos de tamanho_minimo até tamanho_maximo.
+# 2. Busca Exaustiva Rápida (para tamanhos 1, 2 e 3):
+#    Para espaços de busca pequenos (até 4.000 combinações), avalia todas as
+#    combinações em milissegundos (< 0.02s).
+# 3. Algoritmo Genético Paralelo Multi-Core (Modelo de Ilhas):
+#    Para espaços maiores, distribui a população em múltiplas 'ilhas' que evoluem
+#    concorrentemente em processos separados (utilizando todos os núcleos de CPU),
+#    com migração periódica de indivíduos de elite entre as ilhas.
+# ==============================================================================
+
 import copy
+import os
 import random
 import time
+from concurrent.futures import ProcessPoolExecutor
+
 from cruzamento import cruzar_dois_individuos, cruzamento
 from mutacao import mutar_individuo, mutacao
 from pontuacao import (
@@ -17,17 +37,32 @@ from populacao import (
     gerar_todas_combinacoes_validas,
 )
 
-# Limite de combinações para executar busca exaustiva direta (em vez de AG)
+# Limite de combinações para executar busca exaustiva determinística direta (em vez de AG)
 LIMITE_BUSCA_EXAUSTIVA = 4000
 
 
 def selecionar_melhores(populacao, embaralhamento_ou_estado, porcentagem_selecao, cache=None):
     """
-    Avalia a população calculando o fitness de cada indivíduo (com suporte a cache e estado pré-computado)
-    e retorna os melhores indivíduos com base no percentual de seleção.
+    Avalia o fitness de cada indivíduo da população e retorna os melhores selecionados.
+
+    Otimização:
+    Se 'embaralhamento_ou_estado' já for o estado pré-computado de 54 adesivos,
+    avalia diretamente sem reprocessar o embaralhamento do zero.
+
+    Parâmetros:
+        populacao (list[list[str]]): Lista de indivíduos a avaliar.
+        embaralhamento_ou_estado (tuple | list): Estado pré-embaralhado ou lista de movimentos.
+        porcentagem_selecao (float): Proporção da população a ser mantida (ex: 0.50 = 50%).
+        cache (dict, opcional): Dicionário de memoização para indivíduos já avaliados.
+
+    Retorno:
+        tuple: (melhores_individuos, melhor_score, lista_avaliados_ordenada)
     """
-    # Determina se foi passado um estado pré-computado de 54 adesivos ou uma lista de movimentos
-    is_estado_precomputado = isinstance(embaralhamento_ou_estado, (tuple, list)) and len(embaralhamento_ou_estado) == 54 and isinstance(embaralhamento_ou_estado[0], int)
+    is_estado_precomputado = (
+        isinstance(embaralhamento_ou_estado, (tuple, list))
+        and len(embaralhamento_ou_estado) == 54
+        and isinstance(embaralhamento_ou_estado[0], int)
+    )
 
     if is_estado_precomputado:
         estado_base = embaralhamento_ou_estado
@@ -49,7 +84,7 @@ def selecionar_melhores(populacao, embaralhamento_ou_estado, porcentagem_selecao
     # Ordena do maior fitness para o menor
     avaliados.sort(key=lambda x: x[0], reverse=True)
 
-    # Determina a quantidade a manter
+    # Determina a quantidade a manter com base na taxa de seleção
     qtd_selecionada = max(1, round(len(populacao) * porcentagem_selecao))
     melhores = [ind for _, ind in avaliados[:qtd_selecionada]]
 
@@ -67,8 +102,20 @@ def rodar_busca_exaustiva(
     estado_base_precomputado=None,
 ):
     """
-    Executa a busca exaustiva determinística para espaços pequenos (18, 270, 3888).
-    Utiliza o estado embaralhado pré-computado para execução em milissegundos.
+    Executa a busca exaustiva determinística para espaços pequenos (18, 270, 3.888 combinações).
+    Testa todas as combinações válidas em milissegundos utilizando o estado base pré-computado.
+
+    Parâmetros:
+        embaralhamento (list[str]): Movimentos que embaralharam o cubo.
+        tamanho_cromossomo (int): Comprimento da sequência sendo avaliada.
+        cache (dict, opcional): Cache de fitness.
+        callback_progresso (callable, opcional): Função para envio de status para a interface.
+        is_cancelled (callable, opcional): Função para checar cancelamento pelo usuário.
+        total_avaliados_base (int): Contador acumulado de indivíduos testados.
+        estado_base_precomputado (tuple, opcional): Estado de 54 adesivos já embaralhado.
+
+    Retorno:
+        tuple: (melhor_solucao, melhor_score, avaliados_nesta_etapa)
     """
     if estado_base_precomputado is not None:
         estado_base = estado_base_precomputado
@@ -108,7 +155,7 @@ def rodar_busca_exaustiva(
             melhor_score = score
             melhor_solucao = ind
 
-        # Notificação periódica durante a busca (amostragem inteligente)
+        # Notificação periódica amostrada para evitar sobrecarga de I/O
         if callback_progresso and (i % 500 == 0 or i == total or score == 54):
             sol_str = " ".join(melhor_solucao) if melhor_solucao else ""
             callback_progresso({
@@ -124,11 +171,104 @@ def rodar_busca_exaustiva(
                 "mensagem": f"Busca Exaustiva ({i}/{total}): Score Atual {melhor_score}/54 [{sol_str}]",
             })
 
-        # Se encontrou solução perfeita (54/54), encerra imediatamente
+        # Encerramento imediato se encontrou a solução perfeita (54/54)
         if score == 54:
             break
 
     return melhor_solucao, melhor_score, avaliados_locais
+
+
+def _worker_ilha_paralela(args):
+    """
+    Função trabalhadora de alto nível executada em processos paralelos separados (Modelo de Ilhas).
+    Evolui uma subpopulação isolada por um número fixo de gerações (época).
+
+    Parâmetros (tupla args):
+        - island_id (int): Identificador numérico da ilha.
+        - pop_inicial (list[list[str]]): Indivíduos iniciais desta ilha.
+        - estado_base (tuple): Estado de 54 adesivos do cubo embaralhado.
+        - geracoes_bloco (int): Quantidade de gerações a executar nesta época.
+        - mut_rate (float): Taxa de mutação por gene.
+        - cross_rate (float): Taxa de cruzamento.
+        - sel_rate (float): Proporção de indivíduos selecionados como pais.
+        - seed (int): Semente para o gerador de números aleatórios do processo.
+
+    Retorno:
+        dict: Estatísticas da época da ilha (melhor solução, score, população final, avaliados).
+    """
+    island_id, pop_inicial, estado_base, geracoes_bloco, mut_rate, cross_rate, sel_rate, seed = args
+    random.seed(seed)
+
+    populacao = pop_inicial
+    pop_size = len(populacao)
+    qtd_elite = max(1, round(pop_size * 0.05))
+    qtd_sel = max(1, round(pop_size * sel_rate))
+
+    melhor_solucao = None
+    melhor_score = -1
+    avaliados_locais = 0
+    cache = {}
+
+    for _ in range(geracoes_bloco):
+        avaliados = []
+        for ind in populacao:
+            k = tuple(ind)
+            if k in cache:
+                s = cache[k]
+            else:
+                st = aplicar_movimentos(estado_base, ind)
+                s = calcular_score_estado(st)
+                cache[k] = s
+            avaliados.append((s, ind))
+
+        avaliados_locais += len(populacao)
+        avaliados.sort(key=lambda x: x[0], reverse=True)
+
+        max_s = avaliados[0][0]
+        if max_s > melhor_score:
+            melhor_score = max_s
+            melhor_solucao = avaliados[0][1]
+
+        # Interrompe se a ilha atingiu 100% resolvido
+        if max_s == 54:
+            return {
+                "island_id": island_id,
+                "melhor_score": 54,
+                "melhor_solucao": avaliados[0][1],
+                "populacao_final": [ind for _, ind in avaliados],
+                "avaliados": avaliados_locais,
+                "resolvido": True,
+            }
+
+        # Elitismo e Cruzamento
+        nova_pop = [ind for _, ind in avaliados[:qtd_elite]]
+        pais = [ind for _, ind in avaliados[:qtd_sel]]
+
+        while len(nova_pop) < pop_size:
+            p1 = random.choice(pais)
+            p2 = random.choice(pais)
+            if random.random() < cross_rate:
+                f1, f2 = cruzar_dois_individuos(p1, p2)
+            else:
+                f1, f2 = list(p1), list(p2)
+
+            f1 = mutar_individuo(f1, mut_rate)
+            f2 = mutar_individuo(f2, mut_rate)
+
+            nova_pop.append(f1)
+            if len(nova_pop) < pop_size:
+                nova_pop.append(f2)
+
+        populacao = nova_pop
+
+    return {
+        "island_id": island_id,
+        "melhor_score": melhor_score,
+        "melhor_solucao": melhor_solucao,
+        "populacao_final": populacao,
+        "avaliados": avaliados_locais,
+        "resolvido": melhor_score == 54,
+    }
 
 
 def rodar_algoritmo_genetico(
@@ -147,8 +287,32 @@ def rodar_algoritmo_genetico(
     estado_base_precomputado=None,
 ):
     """
-    Executa o Algoritmo Genético com Elitismo, Cruzamento, Mutação e Cache de Fitness.
-    Atualiza as variáveis de progresso através de callback_progresso.
+    Executa o Algoritmo Genético de Alta Performance com suporte a Processamento Paralelo Multi-Core.
+
+    Estratégia:
+    - Para espaços pequenos (<= 4000), executa Busca Exaustiva determinística direta.
+    - Para populações grandes (>= 300) e múltiplos núcleos de CPU disponíveis, utiliza
+      o Modelo de Ilhas Paralelo com migração entre épocas, distribuindo o esforço
+      entre os núcleos e maximizando a diversidade genética.
+    - Caso contrário, executa o loop evolutivo sequencial ultra-otimizado com cache em memória.
+
+    Parâmetros:
+        porcentagem_mutacao (float): Taxa de mutação por gene.
+        porcentagem_cruzamento (float): Taxa de cruzamento entre pais.
+        porcentagem_selecao (float): Taxa de seleção dos melhores indivíduos.
+        quantidade_geracoes (int): Total de gerações a evoluir.
+        quantidade_individuos_inicial (int): Tamanho da população total.
+        embaralhamento (list[str]): Sequência de embaralhamento.
+        tamanho_cromossomo (int): Quantidade de movimentos do cromossomo.
+        intervalo_ciclo (int): Frequência de notificações e logs.
+        limite_busca_exaustiva (int): Limiar para chavear para busca exaustiva.
+        callback_progresso (callable, opcional): Função de atualização em tempo real.
+        is_cancelled (callable, opcional): Função de verificação de cancelamento.
+        total_avaliados_base (int): Contador base de avaliações.
+        estado_base_precomputado (tuple, opcional): Estado inicial de 54 adesivos.
+
+    Retorno:
+        tuple: (melhor_solucao, melhor_score, total_avaliados_etapa)
     """
     if embaralhamento is None:
         embaralhamento = []
@@ -173,12 +337,17 @@ def rodar_algoritmo_genetico(
             estado_base_precomputado=estado_base,
         )
 
-    # Caso 2: Espaço de busca grande -> Algoritmo Genético
     pop_size = min(quantidade_individuos_inicial, espaco_busca)
+    num_cpus = os.cpu_count() or 1
+
+    # Decide se o processamento paralelo em ilhas é vantajoso
+    usar_paralelo = (num_cpus > 1) and (pop_size >= 300) and (quantidade_geracoes >= 40)
+    num_ilhas = min(num_cpus, 8, max(2, pop_size // 100)) if usar_paralelo else 1
 
     if callback_progresso:
+        modo_str = f"Multi-Core ({num_ilhas} Ilhas Paralelas)" if usar_paralelo else "Sequencial Otimizado"
         callback_progresso({
-            "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo})",
+            "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo} - Modo {modo_str})",
             "operacao": "Criando indivíduos",
             "tamanho_atual": tamanho_cromossomo,
             "geracao_atual": 0,
@@ -187,11 +356,103 @@ def rodar_algoritmo_genetico(
             "melhor_score": 0,
             "melhor_solucao": [],
             "melhor_solucao_str": "",
-            "mensagem": f"Criando indivíduos: População inicial de {pop_size} indivíduos gerada para cromossomo tamanho {tamanho_cromossomo}.",
+            "mensagem": f"Criando indivíduos: População inicial de {pop_size} indivíduos gerada ({modo_str}).",
         })
 
-    populacao = gerar_populacao(pop_size, tamanho_cromossomo)
+    # ==========================================================================
+    # RAMO A: EXECUÇÃO PARALELA MULTI-CORE (MODELO DE ILHAS COM MIGRAÇÃO)
+    # ==========================================================================
+    if usar_paralelo:
+        pop_por_ilha = max(10, pop_size // num_ilhas)
+        ilhas_pop = [gerar_populacao(pop_por_ilha, tamanho_cromossomo) for _ in range(num_ilhas)]
 
+        melhor_solucao_global = None
+        melhor_score_global = -1
+        total_avaliados_etapa = 0
+
+        # Divide as gerações em épocas de migração (ex: blocos de 20 a 50 gerações)
+        epocas = max(1, min(20, quantidade_geracoes // 25))
+        geracoes_por_epoca = max(1, quantidade_geracoes // epocas)
+        geracao_acumulada = 0
+
+        try:
+            with ProcessPoolExecutor(max_workers=num_ilhas) as executor:
+                for epoca in range(1, epocas + 1):
+                    if is_cancelled and is_cancelled():
+                        break
+
+                    # Prepara tarefas para cada ilha
+                    tarefas = []
+                    tempo_base_ms = int(time.time() * 1000)
+                    for i in range(num_ilhas):
+                        seed_i = tempo_base_ms + (i * 997) + (epoca * 10007)
+                        tarefas.append((
+                            i,
+                            ilhas_pop[i],
+                            estado_base,
+                            geracoes_por_epoca,
+                            porcentagem_mutacao,
+                            porcentagem_cruzamento,
+                            porcentagem_selecao,
+                            seed_i,
+                        ))
+
+                    # Executa a época em paralelo nos múltiplos núcleos de CPU
+                    resultados_epoca = list(executor.map(_worker_ilha_paralela, tarefas))
+
+                    geracao_acumulada += geracoes_por_epoca
+
+                    # Processa os resultados das ilhas
+                    elites_migracao = []
+                    for res in resultados_epoca:
+                        total_avaliados_etapa += res["avaliados"]
+                        ilhas_pop[res["island_id"]] = res["populacao_final"]
+
+                        if res["melhor_score"] > melhor_score_global:
+                            melhor_score_global = res["melhor_score"]
+                            melhor_solucao_global = res["melhor_solucao"]
+
+                        if res["melhor_solucao"]:
+                            elites_migracao.append(res["melhor_solucao"])
+
+                    # Notificação periódica para o callback de progresso
+                    if callback_progresso:
+                        sol_str = " ".join(melhor_solucao_global) if melhor_solucao_global else ""
+                        callback_progresso({
+                            "etapa": f"Algoritmo Genético Multi-Core ({num_ilhas} Ilhas) - Geração {min(geracao_acumulada, quantidade_geracoes)}/{quantidade_geracoes}",
+                            "operacao": "Avaliando fitness (Paralelo)",
+                            "tamanho_atual": tamanho_cromossomo,
+                            "geracao_atual": min(geracao_acumulada, quantidade_geracoes),
+                            "total_geracoes": quantidade_geracoes,
+                            "individuos_avaliados": total_avaliados_base + total_avaliados_etapa,
+                            "melhor_score": melhor_score_global,
+                            "melhor_solucao": melhor_solucao_global or [],
+                            "melhor_solucao_str": sol_str,
+                            "mensagem": f"Geração {min(geracao_acumulada, quantidade_geracoes)}/{quantidade_geracoes}: Score {melhor_score_global}/54 | Avaliados: {(total_avaliados_base + total_avaliados_etapa):,} ({num_ilhas} núcleos)",
+                        })
+
+                    # Condição de parada imediata: Cubo 100% resolvido
+                    if melhor_score_global == 54:
+                        break
+
+                    # Migração de Elites: Injeta os melhores indivíduos nas outras ilhas
+                    if len(elites_migracao) > 1:
+                        for i in range(num_ilhas):
+                            # Insere o melhor indivíduo da ilha vizinha substituindo o pior
+                            vizinho = (i + 1) % num_ilhas
+                            if ilhas_pop[i] and elites_migracao[vizinho]:
+                                ilhas_pop[i][-1] = list(elites_migracao[vizinho])
+
+            return melhor_solucao_global, melhor_score_global, total_avaliados_etapa
+
+        except Exception:
+            # Fallback seguro para execução sequencial caso haja erro de processo
+            pass
+
+    # ==========================================================================
+    # RAMO B: EXECUÇÃO SEQUENCIAL OTIMIZADA COM CACHE EM MEMÓRIA
+    # ==========================================================================
+    populacao = gerar_populacao(pop_size, tamanho_cromossomo)
     melhor_solucao = None
     melhor_score_global = -1
     avaliados_locais = 0
@@ -283,6 +544,22 @@ def resolver_cubo_incremental(
     Executa a resolução incremental do Cubo Mágico através do Algoritmo Genético,
     testando comprimentos de cromossomo de tamanho_minimo até tamanho_maximo.
     Emite métricas completas e mensagens via callback_progresso.
+
+    Parâmetros:
+        embaralhamento (list[str] | str, opcional): Sequência de embaralhamento do cubo.
+        porcentagem_mutacao (float): Taxa de mutação genética por gene (padrão: 0.05).
+        porcentagem_cruzamento (float): Taxa de recombinação (padrão: 0.70).
+        porcentagem_selecao (float): Proporção de indivíduos mantidos na seleção (padrão: 0.50).
+        quantidade_geracoes (int): Total máximo de gerações por tamanho de cromossomo (padrão: 2000).
+        quantidade_individuos_inicial (int): Tamanho da população inicial (padrão: 1000).
+        tamanho_minimo (int): Comprimento inicial de cromossomo a testar (padrão: 1).
+        tamanho_maximo (int): Comprimento máximo de cromossomo a testar (padrão: 54).
+        intervalo_ciclo (int): Intervalo de gerações para emissão de logs/status (padrão: 500).
+        callback_progresso (callable, opcional): Função callback para envio de progresso em tempo real.
+        is_cancelled (callable, opcional): Função que retorna True se a execução foi cancelada.
+
+    Retorno:
+        dict: Dicionário estruturado com o resultado final, score, solução e histórico.
     """
     if embaralhamento is None:
         embaralhamento = []

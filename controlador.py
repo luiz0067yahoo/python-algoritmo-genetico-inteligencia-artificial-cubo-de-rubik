@@ -1,3 +1,17 @@
+# ==============================================================================
+# CONTROLADOR.PY - SERVIDOR WEB FLASK, GERENCIAMENTO DE SESSÕES E API REST
+# ==============================================================================
+# Este módulo implementa o servidor web em Flask que atua como ponte entre a
+# interface gráfica 3D (Three.js no navegador) e o Algoritmo Genético em Python.
+#
+# Principais Responsabilidades:
+# 1. Servir a interface web principal ('/').
+# 2. Iniciar execuções assíncronas do AG em background ('/iniciar_solucao').
+# 3. Fornecer snapshots de métricas e progresso em tempo real ('/status/<session_id>').
+# 4. Permitir cancelamento imediato de sessões ativas ('/cancelar_solucao').
+# 5. Gerar sequências oficiais de embaralhamento WCA ('/gerar_embaralhamento_wca').
+# ==============================================================================
+
 import threading
 import time
 import uuid
@@ -5,17 +19,29 @@ from flask import Flask, request, render_template, jsonify, session
 from flask_cors import CORS
 from geracao import resolver_cubo_incremental
 
+# Inicialização da aplicação Flask
 app = Flask(__name__, template_folder='.', static_folder='.')
 app.secret_key = 'rubik_secret_ai_optimizer_key_2026'
+
+# Habilita CORS para permitir requisições de diferentes origens se necessário
 CORS(app, origins='*')
 
-# Gerenciamento de progresso de sessões em memória com Lock
+# Dicionário em memória para rastrear o estado e progresso de cada sessão ativa
+# Chave: session_id (str) -> Valor: dict contendo métricas, histórico e status
 SESSOES_PROGRESSO = {}
+
+# Mutex Lock para garantir thread safety no acesso concorrente às variáveis de sessão
 LOCK_SESSAO = threading.Lock()
 
 
 def atualizar_sessao(session_id, dados):
-    """Atualiza o estado de progresso de uma sessão de forma segura."""
+    """
+    Atualiza o estado de progresso de uma sessão ativa de forma thread-safe.
+
+    Parâmetros:
+        session_id (str): Identificador único da sessão.
+        dados (dict): Dicionário contendo os campos e métricas a serem atualizados.
+    """
     with LOCK_SESSAO:
         if session_id in SESSOES_PROGRESSO:
             estado = SESSOES_PROGRESSO[session_id]
@@ -24,7 +50,7 @@ def atualizar_sessao(session_id, dados):
                     mensagens = estado.get('mensagens', [])
                     timestamp = time.strftime('%H:%M:%S')
                     mensagens.append(f"[{timestamp}] {valor}")
-                    # Mantém no máximo 150 mensagens no histórico da sessão
+                    # Limita o histórico a 150 mensagens para evitar consumo excessivo de memória
                     if len(mensagens) > 150:
                         mensagens = mensagens[-150:]
                     estado['mensagens'] = mensagens
@@ -33,16 +59,26 @@ def atualizar_sessao(session_id, dados):
 
 
 def worker_solucao(session_id, payload):
-    """Thread executada em segundo plano para o Algoritmo Genético."""
+    """
+    Função executada em uma thread em segundo plano (background worker)
+    para rodar o Algoritmo Genético sem travar o servidor web.
+
+    Parâmetros:
+        session_id (str): Identificador único da sessão.
+        payload (dict): Parâmetros do AG (embaralhamento, taxas, gerações, etc.).
+    """
     def callback(info):
+        """Callback invocado pelo algoritmo genético a cada geração/ciclo."""
         atualizar_sessao(session_id, info)
 
     def is_cancelled():
+        """Função para verificar se o usuário solicitou o cancelamento da sessão."""
         with LOCK_SESSAO:
             sess = SESSOES_PROGRESSO.get(session_id)
             return sess.get('cancelado', False) if sess else True
 
     try:
+        # Executa o resolvedor incremental de alta performance
         resultado = resolver_cubo_incremental(
             embaralhamento=payload.get('embaralhamento', []),
             porcentagem_mutacao=payload.get('porcentagem_mutacao', 0.05),
@@ -57,6 +93,7 @@ def worker_solucao(session_id, payload):
             is_cancelled=is_cancelled,
         )
 
+        # Atualiza a sessão com os resultados finais
         with LOCK_SESSAO:
             if session_id in SESSOES_PROGRESSO:
                 if SESSOES_PROGRESSO[session_id].get('cancelado'):
@@ -71,6 +108,7 @@ def worker_solucao(session_id, payload):
                     SESSOES_PROGRESSO[session_id]['mensagem'] = resultado.get('mensagem', 'Processamento finalizado.')
 
     except Exception as e:
+        # Registra erros imprevistos de execução
         with LOCK_SESSAO:
             if session_id in SESSOES_PROGRESSO:
                 SESSOES_PROGRESSO[session_id]['status'] = 'erro'
@@ -78,9 +116,13 @@ def worker_solucao(session_id, payload):
                 SESSOES_PROGRESSO[session_id]['mensagem'] = f"Erro na execução: {str(e)}"
 
 
+# ==============================================================================
+# ROTAS HTTP / API REST
+# ==============================================================================
+
 @app.route('/')
 def index():
-    """Renderiza a interface web 3D do Cubo Mágico."""
+    """Renderiza a interface web 3D interativa do Cubo de Rubik."""
     return render_template('index.html')
 
 
@@ -88,15 +130,15 @@ def index():
 @app.route('/solucionar', methods=['POST'])
 def iniciar_solucao():
     """
-    Inicia a execução assíncrona do Algoritmo Genético em background,
-    registrando a sessão e retornando o session_id para acompanhamento em tempo real via AJAX.
+    Inicia a execução assíncrona do Algoritmo Genético em background.
+    Cria a sessão e retorna imediatamente o session_id para acompanhamento via polling.
     """
     dados = request.get_json(silent=True) or {}
 
     session_id = dados.get('session_id') or str(uuid.uuid4())
     session['session_id'] = session_id
 
-    # Normalização de parâmetros
+    # Normalização e validação dos parâmetros recebidos
     embaralhamento = dados.get('embaralhamento', [])
     if isinstance(embaralhamento, str):
         embaralhamento = [m for m in embaralhamento.split() if m.strip()]
@@ -113,7 +155,7 @@ def iniciar_solucao():
         'intervalo_ciclo': max(1, int(dados.get('intervalo_ciclo', 500))),
     }
 
-    # Inicialização do estado de progresso da sessão
+    # Inicializa o snapshot de progresso da sessão
     with LOCK_SESSAO:
         SESSOES_PROGRESSO[session_id] = {
             'status': 'executando',
@@ -133,7 +175,7 @@ def iniciar_solucao():
             'timestamp_inicio': time.time(),
         }
 
-    # Dispara a thread em segundo plano
+    # Dispara a thread em segundo plano (daemon thread)
     thread = threading.Thread(target=worker_solucao, args=(session_id, payload), daemon=True)
     thread.start()
 
@@ -151,9 +193,13 @@ def iniciar_solucao():
 @app.route('/progresso/<session_id>', methods=['GET'])
 def obter_status(session_id=None):
     """
-    Retorna o snapshot das variáveis de sessão em tempo real:
-    indivíduos avaliados, etapa atual de avaliação, geração atual, score e mensagens.
-    Disponível via rota /status e /status/<session_id> consultada de 1 em 1 segundo pelo JavaScript.
+    Retorna o snapshot das métricas de progresso da sessão em tempo real:
+    - Geração atual e total de gerações
+    - Total de indivíduos avaliados
+    - Melhor score atingido (0 a 54)
+    - Melhor solução encontrada até o momento
+    - Logs textuais do terminal
+    - Tempo decorrido de execução
     """
     if not session_id:
         session_id = request.args.get('session_id') or session.get('session_id')
@@ -170,16 +216,15 @@ def obter_status(session_id=None):
                 'mensagem': 'Sessão não encontrada.'
             }), 404
 
-        # Retorna cópia rasa do estado da sessão
+        # Retorna cópia com cálculo do tempo decorrido
         snapshot = dict(estado)
         snapshot['tempo_decorrido'] = round(time.time() - snapshot.get('timestamp_inicio', time.time()), 2)
         return jsonify(snapshot), 200
 
 
-
 @app.route('/cancelar_solucao', methods=['POST'])
 def cancelar_solucao():
-    """Cancela a execução da sessão atual."""
+    """Cancela a execução da sessão ativa solicitada pelo usuário."""
     dados = request.get_json(silent=True) or {}
     session_id = dados.get('session_id') or session.get('session_id')
 
@@ -196,11 +241,31 @@ def cancelar_solucao():
             return jsonify({'erro': 'Sessão não encontrada'}), 404
 
 
+@app.route('/gerar_embaralhamento_wca', methods=['GET', 'POST'])
+def obter_embaralhamento_wca():
+    """
+    Gera e retorna uma sequência de embaralhamento oficial no padrão da World Cube Association (WCA).
+    Por padrão retorna 25 movimentos válidos sem redundâncias ou cancelamentos.
+    """
+    from populacao import gerar_embaralhamento_wca
+    dados = request.get_json(silent=True) or {}
+    tamanho = int(request.args.get('tamanho') or dados.get('tamanho') or 25)
+    tamanho = max(1, min(100, tamanho))
+    scramble = gerar_embaralhamento_wca(tamanho)
+    return jsonify({
+        'sucesso': True,
+        'embaralhamento': scramble,
+        'embaralhamento_str': " ".join(scramble),
+        'tamanho': len(scramble)
+    }), 200
+
+
 @app.route('/rodar_algoritmo_genetico', methods=['POST'])
 def rodar_ag_legado():
-    """Rota legada síncrona mantida para compatibilidade direta."""
+    """Rota legada síncrona mantida para compatibilidade com versões anteriores."""
     return iniciar_solucao()
 
 
 if __name__ == '__main__':
+    # Inicializa o servidor web local na porta 5000
     app.run(debug=True, host='0.0.0.0', port=5000)

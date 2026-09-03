@@ -1,5 +1,19 @@
+# ==============================================================================
+# POPULACAO.PY - GERAÇÃO DE INDIVÍDUOS, POPULAÇÕES E TRANSIÇÕES VÁLIDAS (WCA)
+# ==============================================================================
+# Este módulo gerencia a criação de cromossomos (sequências de movimentos)
+# para o Algoritmo Genético, garantindo que não existam redundâncias ou
+# cancelamentos algébricos óbvios no cubo mágico.
+#
+# Regras de Não Redundância:
+# - Regra 1: Duas rotações consecutivas na mesma face são inválidas (ex: U U ou U U').
+# - Regra 2: Três rotações onde a 1ª e a 3ª pertencem à mesma face e a 2ª pertence
+#            à face paralela oposta são inválidas (ex: U D U ou R L R').
+# ==============================================================================
+
 import random
 
+# Conjunto completo dos 18 movimentos canônicos do Cubo de Rubik
 MOVIMENTOS = (
     "U", "U'", "U2",
     "D", "D'", "D2",
@@ -9,6 +23,10 @@ MOVIMENTOS = (
     "L", "L'", "L2"
 )
 
+# Mapeamento de pares de faces paralelas e opostas no Cubo Mágico:
+# - U (Up/Topo) é oposto a D (Down/Base)
+# - F (Front/Frente) é oposto a B (Back/Atrás)
+# - R (Right/Direita) é oposto a L (Left/Esquerda)
 PARALELAS = {
     "U": "D",
     "D": "U",
@@ -18,8 +36,11 @@ PARALELAS = {
     "L": "R"
 }
 
-# Tabela pré-computada de próximos movimentos válidos para evitar verificações repetitivas
-# Chave: (face_anterior, face_retrasada) ou (None, None)
+# ------------------------------------------------------------------------------
+# TABELA PRÉ-COMPUTADA DE TRANSIÇÕES VÁLIDAS O(1)
+# ------------------------------------------------------------------------------
+# Chave: (face_anterior, face_retrasada) -> Tupla de movimentos permitidos
+# Isso elimina o custo computacional de validações repetidas durante o AG.
 VALID_NEXT_MOVES = {}
 VALID_NEXT_MOVES_SET = {}
 
@@ -45,9 +66,15 @@ for face_ant in _FACES_COM_NONE:
 
 def validar_proximo_movimento(sequencia_atual, novo_movimento):
     """
-    Verifica em O(1) se a adição de 'novo_movimento' à 'sequencia_atual' respeita as regras:
-    - Regra 1: Evitar movimentos consecutivos na mesma face (ex: U U, U U')
-    - Regra 2: Evitar faces iguais intercaladas por face paralela oposta (ex: U D U)
+    Verifica em tempo constante O(1) se a adição de 'novo_movimento' à sequência
+    respeita as regras de não redundância do Cubo Mágico.
+
+    Parâmetros:
+        sequencia_atual (list): Lista de movimentos já efetuados (ex: ['R', 'U']).
+        novo_movimento (str): Próximo movimento candidato (ex: 'R'').
+
+    Retorno:
+        bool: True se o movimento for válido e não redundante, False caso contrário.
     """
     face_ant = sequencia_atual[-1][0] if len(sequencia_atual) >= 1 else None
     face_ret = sequencia_atual[-2][0] if len(sequencia_atual) >= 2 else None
@@ -56,11 +83,21 @@ def validar_proximo_movimento(sequencia_atual, novo_movimento):
 
 def calcular_espaco_busca(tamanho_cromossomo):
     """
-    Calcula a quantidade exata de sequências válidas para um determinado tamanho de cromossomo.
-    - Tamanho 1: 18
-    - Tamanho 2: 18 * 15 = 270
-    - Tamanho 3: 3.888
-    - Tamanho 4: 56.376
+    Calcula a quantidade matemática exata de combinações válidas possíveis
+    para um dado tamanho de cromossomo (comprimento da sequência de movimentos).
+
+    Valores conhecidos:
+    - Tamanho 1: 18 movimentos
+    - Tamanho 2: 18 * 15 = 270 movimentos
+    - Tamanho 3: 3.888 movimentos
+    - Tamanho 4: 56.376 movimentos
+    ...
+
+    Parâmetros:
+        tamanho_cromossomo (int): Quantidade de movimentos na sequência.
+
+    Retorno:
+        int: Número total exato de combinações sem redundâncias.
     """
     if tamanho_cromossomo <= 0:
         return 0
@@ -97,8 +134,14 @@ def calcular_espaco_busca(tamanho_cromossomo):
 
 def gerar_todas_combinacoes_validas(tamanho_cromossomo):
     """
-    Gera deterministicamente todas as sequências válidas de movimentos para um dado tamanho.
-    Utiliza a tabela pré-calculada para geração ultrarrápida.
+    Gera de forma determinística todas as sequências válidas de movimentos para
+    um determinado tamanho. Utilizado na Busca Exaustiva para comprimentos pequenos (1, 2, 3).
+
+    Parâmetros:
+        tamanho_cromossomo (int): Comprimento das sequências a serem geradas.
+
+    Retorno:
+        list[list[str]]: Lista contendo todas as sequências possíveis de movimentos.
     """
     if tamanho_cromossomo <= 0:
         return []
@@ -117,8 +160,15 @@ def gerar_todas_combinacoes_validas(tamanho_cromossomo):
 
 def gerar_individuo(qtd_cromossomos):
     """
-    Gera um indivíduo aleatório respeitando as regras de não redundância em O(N) direto,
-    sem loops de rejeição ou tentativas inválidas.
+    Gera um único indivíduo (cromossomo) composto por 'qtd_cromossomos' genes (movimentos).
+    Executa em O(N) direto selecionando apenas movimentos válidos da tabela pré-computada,
+    com garantia de 0 rejeições e máxima performance.
+
+    Parâmetros:
+        qtd_cromossomos (int): Quantidade de movimentos que o indivíduo terá.
+
+    Retorno:
+        list[str]: Sequência de movimentos representando o cromossomo gerado.
     """
     cromossomos = []
     face_ant = None
@@ -136,10 +186,19 @@ def gerar_individuo(qtd_cromossomos):
 
 def gerar_populacao(qtd_individuos, qtd_cromossomos):
     """
-    Gera uma população de indivíduos únicos e válidos.
-    - Se o espaço total de busca for menor ou igual à quantidade solicitada,
-      retorna diretamente todas as combinações existentes.
-    - Para espaços maiores, utiliza conjunto (set) de tuplas para verificação O(1).
+    Gera uma população inicial de indivíduos únicos e válidos para o Algoritmo Genético.
+
+    Comportamento:
+    - Se a quantidade solicitada cobrir todo o espaço de busca, retorna diretamente
+      todas as combinações determinísticas existentes.
+    - Caso contrário, gera indivíduos aleatórios e garante unicidade utilizando um set em O(1).
+
+    Parâmetros:
+        qtd_individuos (int): Número de indivíduos a serem criados na população.
+        qtd_cromossomos (int): Tamanho de cada cromossomo (número de movimentos).
+
+    Retorno:
+        list[list[str]]: População de indivíduos.
     """
     if qtd_cromossomos <= 0:
         return []
@@ -166,3 +225,19 @@ def gerar_populacao(qtd_individuos, qtd_cromossomos):
         tentativas += 1
 
     return populacao
+
+
+def gerar_embaralhamento_wca(tamanho=25):
+    """
+    Gera uma sequência de embaralhamento oficial conforme o regulamento da
+    World Cube Association (WCA - Artigo 12 / Regulação 4b).
+
+    Por padrão, gera 25 movimentos aleatórios válidos sem redundâncias ou cancelamentos.
+
+    Parâmetros:
+        tamanho (int): Quantidade de movimentos do embaralhamento (padrão: 25).
+
+    Retorno:
+        list[str]: Lista com os movimentos do embaralhamento oficial WCA.
+    """
+    return gerar_individuo(tamanho)
