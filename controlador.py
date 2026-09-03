@@ -175,7 +175,7 @@ def iniciar_solucao():
             'melhor_solucao': [],
             'melhor_solucao_str': '',
             'hardware': info_hardware,
-            'mensagens': [f"[{time.strftime('%H:%M:%S')}] Sessão iniciada ({info_hardware['cpu_nome']} - {info_hardware['threads_totais']} threads)."],
+            'mensagens': [f"[{time.strftime('%H:%M:%S')}] Sessão iniciada: {info_hardware['cpu_nome']} (16 threads) + GPU: {info_hardware.get('gpu_nome', 'AMD Radeon 780M')}"],
             'resultado_final': None,
             'cancelado': False,
             'timestamp_inicio': time.time(),

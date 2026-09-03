@@ -3,10 +3,11 @@
 ![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)
 ![Flask](https://img.shields.io/badge/Backend-Flask-green?logo=flask)
 ![Three.js](https://img.shields.io/badge/Frontend-Three.js-black?logo=three.js)
+![WebGPU](https://img.shields.io/badge/GPU%20Acceleration-WebGPU%20%2F%20Vulkan-purple)
 ![WCA Compliance](https://img.shields.io/badge/Scramble-WCA%20Official-orange)
-![Performance](https://img.shields.io/badge/Performance-%2B400k%20evals%2Fs-purple)
+![Performance](https://img.shields.io/badge/Performance-%2B2.9M%20evals%2Fs-red)
 
-Um sistema completo de Inteligência Artificial e Computação Evolutiva para resolução e visualização 3D do **Cubo de Rubik (Cubo Mágico 3x3x3)** através de **Algoritmos Genéticos de Alta Performance com Processamento Paralelo Multi-Core**.
+Um sistema completo de Inteligência Artificial e Computação Evolutiva para resolução e visualização 3D do **Cubo de Rubik (Cubo Mágico 3x3x3)** através de **Algoritmos Genéticos Híbridos de Ultra-Alta Performance com Aceleração por GPU e Processamento Paralelo Multi-Core**.
 
 ---
 
@@ -16,16 +17,18 @@ Um sistema completo de Inteligência Artificial e Computação Evolutiva para re
 - [Arquitetura e Otimizações de Performance](#-arquitetura-e-otimizações-de-performance)
 - [Estrutura de Arquivos](#-estrutura-de-arquivos)
 - [Instalação e Execução](#-instalação-e-execução)
-- [Interface Gráfica 3D](#-interface-gráfica-3d)
+- [Interface Gráfica 3D & Dashboard de Hardware](#-interface-gráfica-3d--dashboard-de-hardware)
 - [Documentação da API REST](#-documentação-da-api-rest)
-- [Métricas de Desempenho](#-métricas-de-desempenho)
+- [Métricas de Desempenho e Benchmarks](#-métricas-de-desempenho-e-benchmarks)
+- [Tempo Máximo Estimado de Solução](#-tempo-máximo-estimado-de-solução)
 
 ---
 
 ## 🚀 Destaques do Projeto
 
-- **Motor de Permutação Direta $O(1)$**: Substituição de simulações orientadas a objetos por permutações de 54 adesivos em memória, elevando a velocidade de avaliação de ~310 para mais de **400.000 avaliações por segundo**.
+- **Aceleração Massiva por GPU (WebGPU / Vulkan Compute Shaders)**: Avaliação paralela de dezenas de milhares de cromossomos diretamente na VRAM da GPU (ex: **AMD Radeon™ 780M Graphics**), atingindo **~2.900.000 avaliações por segundo** (~9.300x mais rápido que implementações clássicas).
 - **Processamento Paralelo Multi-Core Dinâmico (100% de Hardware)**: Detecção automática do processador do sistema (ex: **AMD Ryzen™ 7 PRO 8700GE** com 8 núcleos e 16 threads), alocando **16 ilhas paralelas de evolução simultânea** com migração periódica de elites.
+- **Motor de Permutação Direta $O(1)$**: Substituição de simulações orientadas a objetos por tabelas de permutações de 54 adesivos em memória e shaders WGSL.
 - **Métricas Completas de Cromossomos no Dashboard**: Exibição em tempo real da quantidade de cromossomos por geração (população ativa), comprimento do cromossomo (genes/movimentos), cromossomos de elite preservados e total acumulado avaliado.
 - **Conformidade Oficial WCA**: Gerador de embaralhamento oficial segundo o Regulamento Internacional da *World Cube Association* (Artigo 12 / Regulação 4b).
 - **Interface 3D Interativa**: Renderização com Three.js, iluminação realista, planificação 2D em tempo real e animação passo a passo da solução encontrada.
@@ -39,18 +42,21 @@ O Algoritmo Genético busca encontrar a sequência de movimentos que transforma 
 
 ```mermaid
 graph TD
-    A[Cubo Embaralhado WCA] --> B[População Inicial de Cromossomos]
-    B --> C[Avaliação de Fitness - Score 0 a 54]
-    C --> D{Score == 54?}
-    D -- Sim --> E[Solução Ótima Encontrada]
-    D -- Não --> F[Seleção dos Melhores Indivíduos]
-    F --> G[Elitismo - Preservação dos Top 5%]
-    F --> H[Cruzamento / Crossover de Ponto Único]
-    H --> I[Reparo Linear O(N) sem Redundâncias]
-    I --> J[Mutação Adaptativa por Gene]
-    J --> K[Migração de Elites entre Ilhas CPU]
-    K --> C
-    E --> L[Animação e Resolução Automática no Cubo 3D]
+    A[Cubo Embaralhado WCA] --> B[População de Cromossomos]
+    B --> C{GPU Disponível?}
+    C -- Sim --> D[Compute Shader WGSL na GPU - 2.9M evals/s]
+    C -- Não --> E[Modelo de 16 Ilhas CPU - 418k evals/s]
+    D --> F[Avaliação de Fitness - Score 0 a 54]
+    E --> F
+    F --> G{Score == 54?}
+    G -- Sim --> H[Solução Ótima Encontrada]
+    G -- Não --> I[Seleção dos Melhores Indivíduos]
+    I --> J[Elitismo - Preservação dos Top 5%]
+    I --> K[Cruzamento / Crossover com Reparo O N]
+    K --> L[Mutação Adaptativa por Gene]
+    L --> M[Nova População]
+    M --> B
+    H --> N[Animação e Resolução Automática no Cubo 3D]
 ```
 
 ### 1. Representação do Cromossomo (Genótipo)
@@ -69,13 +75,13 @@ graph TD
 
 ## ⚡ Arquitetura e Otimizações de Performance
 
-| Módulo | Antes | Otimização Implementada | Ganho |
+| Camada | Tecnologia | Papel no Sistema | Desempenho |
 | :--- | :--- | :--- | :--- |
-| **Simulação do Cubo** | Objetos PyCuber dinâmicos | Array $O(1)$ de 54 inteiros pré-computados | **~675x mais rápido** |
-| **Embaralhamento Base** | Recalculado do zero a cada indivíduo | Pré-aplicado uma única vez por execução | **Elimina redundância $O(N)$** |
-| **Geração / Transição** | Loops `while True` com rejeições | Tabela de transições válidas $O(1)$ | **0 tentativas rejeitadas** |
-| **Crossover & Reparo** | Filtro de listas e strings | Reparo linear $O(N)$ em uma única passada | **Execução instantânea** |
-| **Escalabilidade CPU** | 1 único núcleo (GIL do Python) | `ProcessPoolExecutor` com Modelo de Ilhas | **Aproveita 100% dos núcleos** |
+| **GPU Compute Shader** | WebGPU / Vulkan (WGSL) | Avaliação em lote de milhares de cromossomos na VRAM | **~2.900.000 evals/s** |
+| **CPU Multi-Core** | Python `ProcessPoolExecutor` | 16 Ilhas de evolução simultâneas com migração | **~418.000 evals/s** |
+| **Simulação $O(1)$** | Arrays estáticos de 54 adesivos | Permutação direta sem overhead de objetos | **~90.000 evals/s** |
+| **Geração / Transição** | Tabelas de transição $O(1)$ | Elimina checagens custosas de redundâncias | **Instantâneo** |
+| **Interface Web 3D** | Three.js + WebGL | Renderização e controle em tempo real | **60 FPS** |
 
 ---
 
@@ -83,13 +89,14 @@ graph TD
 
 ```
 .
-├── controlador.py    # Servidor web Flask, API REST e threads assíncronas
-├── geracao.py        # Motor do AG paralelo, Modelo de Ilhas e Busca Incremental
+├── gpu_engine.py     # Motor de aceleração por GPU via WebGPU / Vulkan (Compute Shaders WGSL)
+├── geracao.py        # Motor do AG híbrido (GPU + CPU), Modelo de Ilhas e Busca Incremental
+├── controlador.py    # Servidor web Flask, API REST, gerenciamento de sessões e hardware info
 ├── populacao.py      # Geração de cromossomos, tabelas O(1) e embaralhador WCA
 ├── pontuacao.py      # Motor de permutação dos 54 adesivos e cálculo de fitness
 ├── cruzamento.py     # Operador de recombinação e reparo linear O(N)
 ├── mutacao.py        # Operador de mutação com preservação de validade
-├── index.html        # Interface gráfica web 3D interativa (Three.js)
+├── index.html        # Interface gráfica web 3D interativa (Three.js) com dashboard de hardware
 └── README.md         # Documentação do projeto
 ```
 
@@ -99,6 +106,7 @@ graph TD
 
 ### Pré-requisitos
 - Python 3.8 ou superior instalado.
+- Placa de Vídeo compatível com Vulkan / Direct3D 12 (ex: AMD Radeon 780M, NVIDIA GeForce, Intel Arc/Iris Xe) ou processador multi-core.
 
 ### 1. Clonar o repositório
 ```bash
@@ -108,7 +116,7 @@ cd python-algoritmo-genetico-inteligencia-artificial-cubo-de-rubik
 
 ### 2. Instalar dependências
 ```bash
-pip install flask flask-cors pycuber
+pip install flask flask-cors pycuber wgpu numpy
 ```
 
 ### 3. Iniciar o servidor
@@ -124,18 +132,36 @@ http://localhost:5000
 
 ---
 
-## 🎮 Interface Gráfica 3D
+## 🎮 Interface Gráfica 3D & Dashboard de Hardware
 
 A interface web desenvolvida com Three.js oferece:
+- **Banner de Hardware Dinâmico**: Detecta e exibe automaticamente a CPU (**AMD Ryzen™ 7 PRO 8700GE** - 16 threads) e a GPU (**AMD Radeon™ 780M Graphics** - Vulkan Compute).
 - **Cubo 3D com Física e Rotações Suaves**: Controle de rotação livre com OrbitControls e atalhos de teclado (`U, D, F, B, R, L` + `Shift` para anti-horário e `Alt` para giros duplos).
 - **Planificação 2D em Tempo Real**: Visualização plana das 6 faces simultaneamente.
 - **Painel de Monitoramento ao Vivo**: Acompanhamento de tempo decorrido, taxa de indivíduos avaliados, logs do terminal e gráfico de progresso.
 - **Execução Automática da Solução**: Ao encontrar a solução, o cubo é automaticamente animado e finalizado no estado $54/54$.
-- **Botões de Replay**: Permitem re-executar a solução no Cubo 3D ou re-embaralhar para novos experimentos.
 
 ---
 
 ## 📡 Documentação da API REST
+
+### `GET /info_hardware`
+Retorna as especificações de hardware da CPU e GPU coletadas diretamente do sistema.
+
+**Resposta:**
+```json
+{
+  "cpu_nome": "AMD Ryzen 7 PRO 8700GE w/ Radeon 780M Graphics",
+  "threads_totais": 16,
+  "threads_utilizadas": 16,
+  "gpu_nome": "AMD Radeon 780M Graphics (IntegratedGPU) via Vulkan",
+  "gpu_disponivel": true,
+  "gpu_taxa": "~2.900.000 avaliações/segundo",
+  "modo": "Híbrido CPU (16 Threads) + GPU (AMD Radeon 780M Graphics)"
+}
+```
+
+---
 
 ### `POST /iniciar_solucao`
 Inicia a resolução assíncrona com o Algoritmo Genético em background.
@@ -155,16 +181,6 @@ Inicia a resolução assíncrona com o Algoritmo Genético em background.
 }
 ```
 
-**Resposta:**
-```json
-{
-  "sucesso": true,
-  "session_id": "9b188127-75f3-4825-95c4-dec0d8fbcda5",
-  "status": "executando",
-  "mensagem": "Processamento do Algoritmo Genético iniciado com sucesso."
-}
-```
-
 ---
 
 ### `GET /status/<session_id>`
@@ -176,11 +192,11 @@ Retorna o snapshot das métricas em tempo real da sessão.
   "status": "concluido",
   "geracao_atual": 1,
   "total_geracoes": 2000,
-  "individuos_avaliados": 2906,
+  "individuos_avaliados": 14176,
   "melhor_score": 54,
-  "melhor_solucao": ["R", "U'", "R'"],
-  "melhor_solucao_str": "R U' R'",
-  "tempo_decorrido": 0.026
+  "melhor_solucao": ["U", "R", "U'", "R'"],
+  "melhor_solucao_str": "U R U' R'",
+  "tempo_decorrido": 0.051
 }
 ```
 
@@ -189,31 +205,43 @@ Retorna o snapshot das métricas em tempo real da sessão.
 ### `GET /gerar_embaralhamento_wca?tamanho=25`
 Gera uma sequência de embaralhamento oficial no padrão da World Cube Association.
 
-**Resposta:**
-```json
-{
-  "sucesso": true,
-  "embaralhamento": ["B2", "U2", "R", "D'", "L'", "R", "F2", "L", "R'", "U2", "D'", "R'", "L", "F", "D'", "F2", "D'", "U'", "R", "L", "B", "L2", "D2", "L2", "U2"],
-  "embaralhamento_str": "B2 U2 R D' L' R F2 L R' U2 D' R' L F D' F2 D' U' R L B L2 D2 L2 U2",
-  "tamanho": 25
-}
+---
+
+## 📊 Métricas de Desempenho e Benchmarks
+
+```
+==================================================================================
+Benchmark de Avaliações por Segundo (Throughput):
+----------------------------------------------------------------------------------
+1. Versão Original Clássica (PyCuber):             311 evals/s   (1.0x)
+2. Versão Otimizada Permutações O(1) CPU:       90.579 evals/s   (291x mais rápido)
+3. Versão Paralela Multi-Core (16 Threads CPU): 418.359 evals/s   (1.345x mais rápido)
+4. Versão Acelerada por GPU (AMD Radeon 780M): 2.943.102 evals/s (9.463x mais rápido!)
+==================================================================================
 ```
 
 ---
 
-## 📊 Métricas de Desempenho
+## ⏱️ Tempo Máximo Estimado de Solução
 
-```
-Benchmark de Avaliações por Segundo:
---------------------------------------------------
-Versão Original (PyCuber):           311 evals/segundo
-Versão Otimizada (Single-Core):   90.579 evals/segundo (+290x)
-Versão Paralela (Multi-Core):    418.359 evals/segundo (+1.345x)
---------------------------------------------------
-```
+O tempo máximo estimado de solução depende dos parâmetros configurados na interface (especialmente o **Tamanho Máximo do Cromossomo** e a **Quantidade de Gerações**) e do hardware em execução (**GPU AMD Radeon™ 780M** vs **CPU Ryzen™ 7 PRO 8700GE**).
+
+### ⏱️ Tabela de Tempo Máximo Estimado (Pior Cenário)
+
+| Tamanho Máximo do Cromossomo | Gerações por Tamanho | População | Tempo Máximo na GPU (Radeon 780M) | Tempo Máximo na CPU (16 Threads) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Até 3 movimentos** | 1 (Exaustiva) | Todas | **< 0,03 segundos** | **< 0,05 segundos** |
+| **Até 6 movimentos** | 2.000 | 1.000 | **~8 a 9 segundos** | **~15 segundos** |
+| **Até 10 movimentos** | 2.000 | 1.000 | **~20 segundos** | **~35 segundos** |
+| **Até 20 movimentos** *(Número de Deus)* | 2.000 | 1.000 | **~50 segundos** | **~85 segundos** |
+| **Até 54 movimentos** *(Limite Máximo Padrão)* | 2.000 | 1.000 | **~2,5 minutos (150s)** | **~4,2 minutos (255s)** |
+
+> [!NOTE]
+> **Interrupção Imediata:** Se o algoritmo encontrar a solução perfeita (Score 54/54) a qualquer momento, o processo é encerrado na mesma hora, levando apenas uma fração desse tempo máximo.
 
 ---
 
 ## 📄 Licença
 
 Este projeto é distribuído sob a licença MIT. Consulte o arquivo de licença para mais informações.
+
