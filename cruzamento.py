@@ -1,5 +1,5 @@
 import random
-from populacao import MOVIMENTOS, PARALELAS, validar_proximo_movimento
+from populacao import MOVIMENTOS, PARALELAS, VALID_NEXT_MOVES, VALID_NEXT_MOVES_SET
 
 
 def obter_face(movimento):
@@ -10,18 +10,26 @@ def obter_face(movimento):
 def reparar_individuo(individuo):
     """
     Garante que uma sequência de movimentos respeite rigorosamente as regras
-    de não redundância do Cubo Mágico, substituindo movimentos inválidos.
+    de não redundância do Cubo Mágico em uma única passada O(N), substituindo
+    movimentos inválidos através da tabela de transição O(1).
     """
     reparado = []
+    face_ant = None
+    face_ret = None
+
     for mov in individuo:
-        if validar_proximo_movimento(reparado, mov):
+        chave = (face_ant, face_ret)
+        if mov in VALID_NEXT_MOVES_SET[chave]:
             reparado.append(mov)
+            face_ret = face_ant
+            face_ant = mov[0]
         else:
-            candidatos = [m for m in MOVIMENTOS if validar_proximo_movimento(reparado, m)]
-            if candidatos:
-                reparado.append(random.choice(candidatos))
-            else:
-                reparado.append(mov)
+            opcoes = VALID_NEXT_MOVES[chave]
+            novo_mov = random.choice(opcoes) if opcoes else mov
+            reparado.append(novo_mov)
+            face_ret = face_ant
+            face_ant = novo_mov[0]
+
     return reparado
 
 

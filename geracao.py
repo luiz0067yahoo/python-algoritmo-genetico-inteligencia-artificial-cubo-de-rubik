@@ -3,7 +3,12 @@ import random
 import time
 from cruzamento import cruzar_dois_individuos, cruzamento
 from mutacao import mutar_individuo, mutacao
-from pontuacao import calcular_score
+from pontuacao import (
+    ESTADO_RESOLVIDO,
+    aplicar_movimentos,
+    calcular_score,
+    calcular_score_estado,
+)
 from populacao import (
     MOVIMENTOS,
     PARALELAS,
@@ -16,14 +21,29 @@ from populacao import (
 LIMITE_BUSCA_EXAUSTIVA = 4000
 
 
-def selecionar_melhores(populacao, embaralhamento, porcentagem_selecao, cache=None):
+def selecionar_melhores(populacao, embaralhamento_ou_estado, porcentagem_selecao, cache=None):
     """
-    Avalia a população calculando o fitness de cada indivíduo (com suporte a cache)
+    Avalia a população calculando o fitness de cada indivíduo (com suporte a cache e estado pré-computado)
     e retorna os melhores indivíduos com base no percentual de seleção.
     """
+    # Determina se foi passado um estado pré-computado de 54 adesivos ou uma lista de movimentos
+    is_estado_precomputado = isinstance(embaralhamento_ou_estado, (tuple, list)) and len(embaralhamento_ou_estado) == 54 and isinstance(embaralhamento_ou_estado[0], int)
+
+    if is_estado_precomputado:
+        estado_base = embaralhamento_ou_estado
+    else:
+        estado_base = aplicar_movimentos(ESTADO_RESOLVIDO, embaralhamento_ou_estado)
+
     avaliados = []
     for ind in populacao:
-        score = calcular_score(embaralhamento, ind, cache=cache)
+        chave = tuple(ind)
+        if cache is not None and chave in cache:
+            score = cache[chave]
+        else:
+            st = aplicar_movimentos(estado_base, ind)
+            score = calcular_score_estado(st)
+            if cache is not None:
+                cache[chave] = score
         avaliados.append((score, ind))
 
     # Ordena do maior fitness para o menor
@@ -33,7 +53,7 @@ def selecionar_melhores(populacao, embaralhamento, porcentagem_selecao, cache=No
     qtd_selecionada = max(1, round(len(populacao) * porcentagem_selecao))
     melhores = [ind for _, ind in avaliados[:qtd_selecionada]]
 
-    best_score = avaliados[0][0]
+    best_score = avaliados[0][0] if avaliados else 0
     return melhores, best_score, avaliados
 
 
@@ -44,14 +64,19 @@ def rodar_busca_exaustiva(
     callback_progresso=None,
     is_cancelled=None,
     total_avaliados_base=0,
+    estado_base_precomputado=None,
 ):
     """
     Executa a busca exaustiva determinística para espaços pequenos (18, 270, 3888).
-    Atualiza o callback_progresso com o progresso de indivíduos e etapas.
+    Utiliza o estado embaralhado pré-computado para execução em milissegundos.
     """
+    if estado_base_precomputado is not None:
+        estado_base = estado_base_precomputado
+    else:
+        estado_base = aplicar_movimentos(ESTADO_RESOLVIDO, embaralhamento)
+
     todas_combinacoes = gerar_todas_combinacoes_validas(tamanho_cromossomo)
     total = len(todas_combinacoes)
-    t_inicio = time.time()
 
     melhor_score = -1
     melhor_solucao = None
@@ -76,14 +101,15 @@ def rodar_busca_exaustiva(
             break
 
         avaliados_locais += 1
-        score = calcular_score(embaralhamento, ind, cache=cache)
+        st = aplicar_movimentos(estado_base, ind)
+        score = calcular_score_estado(st)
 
         if score > melhor_score:
             melhor_score = score
             melhor_solucao = ind
 
-        # Notificação periódica durante a busca
-        if callback_progresso and (i % 250 == 0 or i == total or score == 54):
+        # Notificação periódica durante a busca (amostragem inteligente)
+        if callback_progresso and (i % 500 == 0 or i == total or score == 54):
             sol_str = " ".join(melhor_solucao) if melhor_solucao else ""
             callback_progresso({
                 "etapa": f"Busca Exaustiva (Tamanho {tamanho_cromossomo})",
@@ -118,13 +144,19 @@ def rodar_algoritmo_genetico(
     callback_progresso=None,
     is_cancelled=None,
     total_avaliados_base=0,
+    estado_base_precomputado=None,
 ):
     """
     Executa o Algoritmo Genético com Elitismo, Cruzamento, Mutação e Cache de Fitness.
-    Atualiza as variáveis de progresso através de callback_progresso sem prints no terminal.
+    Atualiza as variáveis de progresso através de callback_progresso.
     """
     if embaralhamento is None:
         embaralhamento = []
+
+    if estado_base_precomputado is not None:
+        estado_base = estado_base_precomputado
+    else:
+        estado_base = aplicar_movimentos(ESTADO_RESOLVIDO, embaralhamento)
 
     espaco_busca = calcular_espaco_busca(tamanho_cromossomo)
     cache_fitness = {}
@@ -138,6 +170,7 @@ def rodar_algoritmo_genetico(
             callback_progresso=callback_progresso,
             is_cancelled=is_cancelled,
             total_avaliados_base=total_avaliados_base,
+            estado_base_precomputado=estado_base,
         )
 
     # Caso 2: Espaço de busca grande -> Algoritmo Genético
@@ -161,19 +194,16 @@ def rodar_algoritmo_genetico(
 
     melhor_solucao = None
     melhor_score_global = -1
-    geracao_resolvido = -1
     avaliados_locais = 0
-    t_inicio = time.time()
-
     qtd_elite = max(1, round(pop_size * 0.05))
 
     for geracao in range(1, quantidade_geracoes + 1):
         if is_cancelled and is_cancelled():
             break
 
-        # 1. Avaliação e ordenação por fitness
+        # 1. Avaliação e ordenação por fitness usando estado pré-computado
         melhores, max_score, avaliados = selecionar_melhores(
-            populacao, embaralhamento, porcentagem_selecao, cache=cache_fitness
+            populacao, estado_base, porcentagem_selecao, cache=cache_fitness
         )
         avaliados_locais += len(populacao)
 
@@ -187,7 +217,7 @@ def rodar_algoritmo_genetico(
             or geracao == quantidade_geracoes
             or geracao % max(1, intervalo_ciclo) == 0
             or max_score == 54
-            or (geracao % 10 == 0 and max_score > melhor_score_global - 2)
+            or (geracao % 20 == 0 and max_score > melhor_score_global - 2)
         )
 
         if callback_progresso and deve_notificar:
@@ -207,30 +237,13 @@ def rodar_algoritmo_genetico(
 
         # Condição de parada imediata: Cubo 100% resolvido
         if max_score == 54:
-            geracao_resolvido = geracao
             break
 
         # 2. Elitismo
         nova_populacao = [ind for _, ind in avaliados[:qtd_elite]]
         pais_candidatos = melhores
 
-        # Notifica início das operações genéticas de cruzamento e mutação
-        if callback_progresso and (geracao % max(1, intervalo_ciclo) == 0 or geracao == 1):
-            callback_progresso({
-                "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo} - Geração {geracao}/{quantidade_geracoes})",
-                "operacao": "Fazendo cruzamento",
-                "tamanho_atual": tamanho_cromossomo,
-                "geracao_atual": geracao,
-                "total_geracoes": quantidade_geracoes,
-                "individuos_avaliados": total_avaliados_base + avaliados_locais,
-                "melhor_score": melhor_score_global,
-                "melhor_solucao": melhor_solucao or [],
-                "melhor_solucao_str": " ".join(melhor_solucao) if melhor_solucao else "",
-                "mensagem": f"Geração {geracao}: Fazendo cruzamento entre os melhores indivíduos selecionados...",
-            })
-
-        # 3. Cruzamento e Mutação
-        houve_mutacao = False
+        # 3. Cruzamento e Mutação otimizados
         while len(nova_populacao) < pop_size:
             p1 = random.choice(pais_candidatos)
             p2 = random.choice(pais_candidatos)
@@ -241,29 +254,12 @@ def rodar_algoritmo_genetico(
                 f1, f2 = list(p1), list(p2)
 
             # Mutação
-            f1_antigo = list(f1)
             f1 = mutar_individuo(f1, porcentagem_mutacao)
             f2 = mutar_individuo(f2, porcentagem_mutacao)
-            if f1 != f1_antigo:
-                houve_mutacao = True
 
             nova_populacao.append(f1)
             if len(nova_populacao) < pop_size:
                 nova_populacao.append(f2)
-
-        if callback_progresso and (geracao % max(1, intervalo_ciclo) == 0 or geracao == 1) and houve_mutacao:
-            callback_progresso({
-                "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo} - Geração {geracao}/{quantidade_geracoes})",
-                "operacao": "Fazendo mutação",
-                "tamanho_atual": tamanho_cromossomo,
-                "geracao_atual": geracao,
-                "total_geracoes": quantidade_geracoes,
-                "individuos_avaliados": total_avaliados_base + avaliados_locais,
-                "melhor_score": melhor_score_global,
-                "melhor_solucao": melhor_solucao or [],
-                "melhor_solucao_str": " ".join(melhor_solucao) if melhor_solucao else "",
-                "mensagem": f"Geração {geracao}: Fazendo mutação com taxa de {porcentagem_mutacao * 100:.1f}% nos novos descendentes.",
-            })
 
         populacao = nova_populacao
 
@@ -286,7 +282,7 @@ def resolver_cubo_incremental(
     """
     Executa a resolução incremental do Cubo Mágico através do Algoritmo Genético,
     testando comprimentos de cromossomo de tamanho_minimo até tamanho_maximo.
-    Emite métricas completas e mensagens via callback_progresso sem prints.
+    Emite métricas completas e mensagens via callback_progresso.
     """
     if embaralhamento is None:
         embaralhamento = []
@@ -296,8 +292,11 @@ def resolver_cubo_incremental(
     t_inicio_total = time.time()
     total_individuos_avaliados = 0
 
+    # Pré-computa o estado inicial do cubo embaralhado uma única vez
+    scrambled_state = aplicar_movimentos(ESTADO_RESOLVIDO, embaralhamento)
+
     # Verifica se o cubo já está resolvido inicialmente
-    score_inicial = calcular_score(embaralhamento, [])
+    score_inicial = calcular_score_estado(scrambled_state)
     if score_inicial == 54:
         res = {
             "sucesso": True,
@@ -362,6 +361,7 @@ def resolver_cubo_incremental(
             callback_progresso=callback_progresso,
             is_cancelled=is_cancelled,
             total_avaliados_base=total_individuos_avaliados,
+            estado_base_precomputado=scrambled_state,
         )
 
         total_individuos_avaliados += avaliados_etapa

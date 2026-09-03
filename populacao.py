@@ -18,28 +18,40 @@ PARALELAS = {
     "L": "R"
 }
 
+# Tabela pré-computada de próximos movimentos válidos para evitar verificações repetitivas
+# Chave: (face_anterior, face_retrasada) ou (None, None)
+VALID_NEXT_MOVES = {}
+VALID_NEXT_MOVES_SET = {}
+
+_FACES_COM_NONE = (None, "U", "D", "F", "B", "R", "L")
+
+for face_ant in _FACES_COM_NONE:
+    for face_ret in _FACES_COM_NONE:
+        validos = []
+        for mov in MOVIMENTOS:
+            f_mov = mov[0]
+            # Regra 1: Evitar movimentos consecutivos na mesma face
+            if face_ant is not None and f_mov == face_ant:
+                continue
+            # Regra 2: Evitar faces iguais intercaladas por face paralela oposta (ex: U D U)
+            if face_ret is not None and face_ant is not None:
+                if f_mov == face_ret and PARALELAS.get(f_mov) == face_ant:
+                    continue
+            validos.append(mov)
+        chave = (face_ant, face_ret)
+        VALID_NEXT_MOVES[chave] = tuple(validos)
+        VALID_NEXT_MOVES_SET[chave] = set(validos)
+
 
 def validar_proximo_movimento(sequencia_atual, novo_movimento):
     """
-    Verifica se a adição de 'novo_movimento' à 'sequencia_atual' respeita as regras:
+    Verifica em O(1) se a adição de 'novo_movimento' à 'sequencia_atual' respeita as regras:
     - Regra 1: Evitar movimentos consecutivos na mesma face (ex: U U, U U')
     - Regra 2: Evitar faces iguais intercaladas por face paralela oposta (ex: U D U)
     """
-    face_atual = novo_movimento[0]
-
-    # Regra 1: Evitar a mesma face consecutiva
-    if len(sequencia_atual) >= 1:
-        if face_atual == sequencia_atual[-1][0]:
-            return False
-
-    # Regra 2: Evitar faces iguais separadas por uma paralela
-    if len(sequencia_atual) >= 2:
-        face_anterior = sequencia_atual[-1][0]
-        face_retrasada = sequencia_atual[-2][0]
-        if face_atual == face_retrasada and PARALELAS.get(face_atual) == face_anterior:
-            return False
-
-    return True
+    face_ant = sequencia_atual[-1][0] if len(sequencia_atual) >= 1 else None
+    face_ret = sequencia_atual[-2][0] if len(sequencia_atual) >= 2 else None
+    return novo_movimento in VALID_NEXT_MOVES_SET[(face_ant, face_ret)]
 
 
 def calcular_espaco_busca(tamanho_cromossomo):
@@ -49,7 +61,6 @@ def calcular_espaco_busca(tamanho_cromossomo):
     - Tamanho 2: 18 * 15 = 270
     - Tamanho 3: 3.888
     - Tamanho 4: 56.376
-    ...
     """
     if tamanho_cromossomo <= 0:
         return 0
@@ -87,7 +98,7 @@ def calcular_espaco_busca(tamanho_cromossomo):
 def gerar_todas_combinacoes_validas(tamanho_cromossomo):
     """
     Gera deterministicamente todas as sequências válidas de movimentos para um dado tamanho.
-    Ideal para tamanhos pequenos (1, 2, 3) onde a busca exaustiva é instantânea.
+    Utiliza a tabela pré-calculada para geração ultrarrápida.
     """
     if tamanho_cromossomo <= 0:
         return []
@@ -97,23 +108,29 @@ def gerar_todas_combinacoes_validas(tamanho_cromossomo):
     menores = gerar_todas_combinacoes_validas(tamanho_cromossomo - 1)
     resultado = []
     for seq in menores:
-        for m in MOVIMENTOS:
-            if validar_proximo_movimento(seq, m):
-                resultado.append(seq + [m])
+        face_ant = seq[-1][0]
+        face_ret = seq[-2][0] if len(seq) >= 2 else None
+        for m in VALID_NEXT_MOVES[(face_ant, face_ret)]:
+            resultado.append(seq + [m])
     return resultado
 
 
 def gerar_individuo(qtd_cromossomos):
     """
-    Gera um indivíduo aleatório respeitando as regras de não redundância.
+    Gera um indivíduo aleatório respeitando as regras de não redundância em O(N) direto,
+    sem loops de rejeição ou tentativas inválidas.
     """
     cromossomos = []
+    face_ant = None
+    face_ret = None
+
     for _ in range(qtd_cromossomos):
-        while True:
-            cromossomo = random.choice(MOVIMENTOS)
-            if validar_proximo_movimento(cromossomos, cromossomo):
-                cromossomos.append(cromossomo)
-                break
+        opcoes = VALID_NEXT_MOVES[(face_ant, face_ret)]
+        mov = random.choice(opcoes)
+        cromossomos.append(mov)
+        face_ret = face_ant
+        face_ant = mov[0]
+
     return cromossomos
 
 
@@ -121,8 +138,8 @@ def gerar_populacao(qtd_individuos, qtd_cromossomos):
     """
     Gera uma população de indivíduos únicos e válidos.
     - Se o espaço total de busca for menor ou igual à quantidade solicitada,
-      retorna diretamente todas as combinações existentes (evita loop infinito e redundância).
-    - Para espaços maiores, utiliza conjunto (set) para verificação O(1) com limite de tentativas.
+      retorna diretamente todas as combinações existentes.
+    - Para espaços maiores, utiliza conjunto (set) de tuplas para verificação O(1).
     """
     if qtd_cromossomos <= 0:
         return []
