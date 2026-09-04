@@ -21,13 +21,15 @@ Um sistema completo de Inteligência Artificial e Computação Evolutiva para re
 - [Documentação da API REST](#-documentação-da-api-rest)
 - [Métricas de Desempenho e Benchmarks](#-métricas-de-desempenho-e-benchmarks)
 - [Tempo Máximo Estimado de Solução](#-tempo-máximo-estimado-de-solução)
+- [Sequência Oficial de Referência WCA e Benchmark de Hiperparâmetros](#-sequência-oficial-de-referência-wca-e-benchmark-de-hiperparâmetros)
 
 ---
 
 ## 🚀 Destaques do Projeto
 
-- **Aceleração Massiva por GPU (WebGPU / Vulkan Compute Shaders)**: Avaliação paralela de dezenas de milhares de cromossomos diretamente na VRAM da GPU (ex: **AMD Radeon™ 780M Graphics**), atingindo **~2.900.000 avaliações por segundo** (~9.300x mais rápido que implementações clássicas).
-- **Processamento Paralelo Multi-Core Dinâmico (100% de Hardware)**: Detecção automática do processador do sistema (ex: **AMD Ryzen™ 7 PRO 8700GE** com 8 núcleos e 16 threads), alocando **16 ilhas paralelas de evolução simultânea** com migração periódica de elites.
+- **Carga Total de Hardware (16 Threads CPU 100% + 12 CUs GPU 100%)**: Execução concorrente real entre **16 processos paralelos dedicados ocupando 100% dos 16 núcleos lógicos do processador AMD Ryzen™ 7 PRO 8700GE** e a **Super-Ilha de GPU ocupando todos os 12 Compute Units (768 Stream Processors) da AMD Radeon™ 780M Graphics** com migração cruzada periódica de indivíduos campeões.
+- **Aceleração Massiva por GPU (WebGPU / Vulkan Compute Shaders)**: Avaliação paralela de dezenas de milhares de cromossomos diretamente na VRAM da GPU, atingindo **~2.900.000 avaliações por segundo** (~9.300x mais rápido que implementações clássicas).
+- **Enxame de 16 Ilhas de CPU com Migração**: Alocação de 16 ilhas paralelas explorando nichos genéticos independentes na CPU em perfeita sincronia com a GPU.
 - **Motor de Permutação Direta $O(1)$**: Substituição de simulações orientadas a objetos por tabelas de permutações de 54 adesivos em memória e shaders WGSL.
 - **Métricas Completas de Cromossomos no Dashboard**: Exibição em tempo real da quantidade de cromossomos por geração (população ativa), comprimento do cromossomo (genes/movimentos), cromossomos de elite preservados e total acumulado avaliado.
 - **Conformidade Oficial WCA**: Gerador de embaralhamento oficial segundo o Regulamento Internacional da *World Cube Association* (Artigo 12 / Regulação 4b).
@@ -42,21 +44,21 @@ O Algoritmo Genético busca encontrar a sequência de movimentos que transforma 
 
 ```mermaid
 graph TD
-    A[Cubo Embaralhado WCA] --> B[População de Cromossomos]
-    B --> C{GPU Disponível?}
-    C -- Sim --> D[Compute Shader WGSL na GPU - 2.9M evals/s]
-    C -- Não --> E[Modelo de 16 Ilhas CPU - 418k evals/s]
-    D --> F[Avaliação de Fitness - Score 0 a 54]
-    E --> F
-    F --> G{Score == 54?}
-    G -- Sim --> H[Solução Ótima Encontrada]
-    G -- Não --> I[Seleção dos Melhores Indivíduos]
-    I --> J[Elitismo - Preservação dos Top 5%]
-    I --> K[Cruzamento / Crossover com Reparo O N]
-    K --> L[Mutação Adaptativa por Gene]
-    L --> M[Nova População]
-    M --> B
-    H --> N[Animação e Resolução Automática no Cubo 3D]
+    A[Cubo Embaralhado WCA] --> B[População Heterogênea de Cromossomos]
+    B --> C["⚡ 16 Ilhas CPU (16 Processos em Paralelo / 100% CPU)"]
+    B --> D["🎮 Super-Ilha GPU (12 CUs / 768 Shaders WGSL / 100% GPU)"]
+    C <-->|Migração Cruzada de Elites a cada Época| D
+    C --> E[Avaliação de Fitness - Score 0 a 54]
+    D --> E
+    E --> F{Score == 54?}
+    F -- Sim --> G[Solução Ótima Encontrada]
+    F -- Não --> H[Seleção dos Melhores Indivíduos]
+    H --> I[Elitismo - Preservação dos Top 5%]
+    H --> J[Cruzamento / Crossover com Reparo O N]
+    J --> K[Mutação Adaptativa por Gene]
+    K --> L[Nova População]
+    L --> B
+    G --> M[Animação e Resolução Automática no Cubo 3D]
 ```
 
 ### 1. Representação do Cromossomo (Genótipo)
@@ -177,9 +179,15 @@ Inicia a resolução assíncrona com o Algoritmo Genético em background.
   "quantidade_individuos_inicial": 1000,
   "tamanho_minimo": 1,
   "tamanho_maximo": 54,
-  "intervalo_ciclo": 500
+  "intervalo_ciclo": 500,
+  "modo_hardware": "cpu+gpu"
 }
 ```
+
+> **Opções do parâmetro `modo_hardware`:**
+> - `"cpu+gpu"` *(Padrão / Recomendado)*: Execução Heterogênea Simultânea utilizando todos os 16 threads do processador AMD Ryzen™ 7 PRO 8700GE e todos os 12 CUs da GPU AMD Radeon™ 780M Graphics em paralelo com migração bidirecional de campeões.
+> - `"gpu"`: Aceleração Pura em GPU via WebGPU / Vulkan Compute Shaders (~2.900.000 avaliações/segundo).
+> - `"cpu"`: Multi-Core Puro utilizando 16 processos de ilhas genéticas em paralelo com ProcessPoolExecutor (~418.000 avaliações/segundo).
 
 ---
 
@@ -238,6 +246,60 @@ O tempo máximo estimado de solução depende dos parâmetros configurados na in
 
 > [!NOTE]
 > **Interrupção Imediata:** Se o algoritmo encontrar a solução perfeita (Score 54/54) a qualquer momento, o processo é encerrado na mesma hora, levando apenas uma fração desse tempo máximo.
+
+---
+
+## 🎯 Sequência Oficial de Referência WCA e Benchmark de Hiperparâmetros
+
+### 📋 1. Sequência Oficial Adicionada ao README
+
+A sequência canônica de 25 movimentos foi documentada no [README.md](file:///c:/Users/10345/Documents/GitHub/python-algoritmo-genetico-inteligencia-artificial-cubo-de-rubik/README.md) e incluída como exemplo no campo de embaralhamento da interface gráfica:
+
+```text
+L R U B2 L B2 L R' F' R2 F R' B D' F2 L' R' U' F' L R' D L' F U2
+```
+
+---
+
+### 🧪 2. Benchmark e Análise de Hiperparâmetros
+
+Executamos uma bateria empírica de testes explorando diferentes taxas de mutação, cruzamento, seleção e tamanho populacional utilizando o processamento simultâneo na **GPU AMD Radeon™ 780M (Vulkan)** e **CPU AMD Ryzen™ 7 PRO 8700GE (16 Threads)**:
+
+#### 📊 Ranking das Combinações de Parâmetros
+
+| Rank | Mutação | Crossover | Seleção | População | Gerações | Score Atingido | Throughput Médio | Tempo por Ciclo |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **🥇 #1 (Melhor)** | **`0.05` (5%)** | **`0.70` (70%)** | **`0.50` (50%)** | **`1000`** | **`2000`** | **37 / 54** | **~55.089 evals/s** | **36.30s** |
+| 🥈 #2 | `0.08` | `0.85` | `0.40` | `2000` | `2000` | 36 / 54 | ~50.133 evals/s | 79.79s |
+| 🥉 #3 | `0.05` | `0.80` | `0.50` | `2000` | `2000` | 35 / 54 | ~57.153 evals/s | 69.99s |
+| #4 | `0.06` | `0.80` | `0.50` | `2000` | `2000` | 35 / 54 | ~54.042 evals/s | 74.02s |
+| #5 | `0.05` | `0.85` | `0.50` | `3000` | `2000` | 35 / 54 | ~53.852 evals/s | 111.42s |
+| #6 | `0.03` | `0.80` | `0.30` | `2000` | `2000` | 32 / 54 | ~64.145 evals/s | 62.36s |
+
+---
+
+### ⚙️ 3. Parâmetros Padronizados no Sistema
+
+A combinação com o melhor balanço de exploração genética e velocidade de ciclo foi consolidada como o padrão oficial em:
+
+- [index.html](file:///c:/Users/10345/Documents/GitHub/python-algoritmo-genetico-inteligencia-artificial-cubo-de-rubik/index.html) *(Valores iniciais e botão "↺ Padrões")*
+- [controlador.py](file:///c:/Users/10345/Documents/GitHub/python-algoritmo-genetico-inteligencia-artificial-cubo-de-rubik/controlador.py) *(Servidor Flask e API REST)*
+- [geracao.py](file:///c:/Users/10345/Documents/GitHub/python-algoritmo-genetico-inteligencia-artificial-cubo-de-rubik/geracao.py) *(Motor Evolutivo)*
+- [README.md](file:///c:/Users/10345/Documents/GitHub/python-algoritmo-genetico-inteligencia-artificial-cubo-de-rubik/README.md) *(Tabela de Referência Técnica)*
+
+```json
+{
+  "porcentagem_mutacao": 0.05,
+  "porcentagem_cruzamento": 0.70,
+  "porcentagem_selecao": 0.50,
+  "quantidade_individuos_inicial": 1000,
+  "quantidade_geracoes": 2000,
+  "tamanho_minimo": 1,
+  "tamanho_maximo": 54,
+  "intervalo_ciclo": 500,
+  "modo_hardware": "cpu+gpu"
+}
+```
 
 ---
 

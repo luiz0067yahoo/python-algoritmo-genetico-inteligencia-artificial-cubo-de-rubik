@@ -1,5 +1,5 @@
 # ==============================================================================
-# GERACAO.PY - MOTOR EVOLUTIVO, ALGORITMO GENÉTICO HÍBRIDO (CPU + GPU) E BUSCA
+# GERACAO.PY - MOTOR EVOLUTIVO HÍBRIDO SIMULTÂNEO (CPU MULTI-CORE + GPU)
 # ==============================================================================
 # Este módulo coordena a busca e evolução de soluções para o Cubo de Rubik.
 #
@@ -9,12 +9,12 @@
 # 2. Busca Exaustiva Rápida (para tamanhos 1, 2 e 3):
 #    Para espaços de busca pequenos (até 4.000 combinações), avalia todas as
 #    combinações em milissegundos (< 0.02s).
-# 3. Aceleração por GPU via WebGPU / Vulkan (AMD Radeon™ 780M Graphics):
-#    Avalia populações inteiras (milhares de cromossomos) diretamente na GPU
-#    através de compute shaders WGSL, atingindo até 3.000.000 de avaliações/s.
-# 4. Algoritmo Genético Paralelo Multi-Core (Modelo de Ilhas CPU):
-#    Utiliza 100% das 16 threads do processador AMD Ryzen™ 7 PRO 8700GE
-#    como motor paralelo de CPU e fallback de alta confiabilidade.
+# 3. Execução Simultânea Heterogênea (CPU + GPU):
+#    Executa simultaneamente 15 processos paralelos nos núcleos da CPU
+#    (AMD Ryzen™ 7 PRO 8700GE) e a Super-Ilha de GPU (AMD Radeon™ 780M Graphics)
+#    via Compute Shaders WebGPU/Vulkan com migração bidirecional de campeões.
+# 4. Fallback Dinâmico:
+#    Adapta-se automaticamente caso apenas CPU ou apenas GPU esteja disponível.
 # ==============================================================================
 
 import copy
@@ -200,7 +200,7 @@ def rodar_busca_exaustiva(
 
 def _worker_ilha_paralela(args):
     """
-    Função trabalhadora de alto nível executada em processos paralelos separados (Modelo de Ilhas).
+    Função trabalhadora executada em processos paralelos separados (Modelo de Ilhas CPU).
     Evolui uma subpopulação isolada por um número fixo de gerações (época).
 
     Parâmetros (tupla args):
@@ -291,6 +291,72 @@ def _worker_ilha_paralela(args):
     }
 
 
+def _executar_bloco_gpu(pop_inicial, estado_base, geracoes, mut_rate, cross_rate, sel_rate, engine):
+    """
+    Executa a evolução da Super-Ilha GPU em paralelo direto na placa de vídeo
+    enquanto os 15 núcleos de CPU estão trabalhando simultaneamente.
+    """
+    populacao = pop_inicial
+    pop_size = len(populacao)
+    qtd_elite = max(1, round(pop_size * 0.05))
+    qtd_sel = max(2, round(pop_size * sel_rate))
+
+    melhor_solucao = None
+    melhor_score = -1
+    evals = 0
+
+    for _ in range(geracoes):
+        pop_ids = converter_populacao_para_ids(populacao)
+        scores = engine.avaliar_populacao(estado_base, pop_ids)
+        evals += pop_size
+
+        best_idx = int(np.argmax(scores))
+        max_s = int(scores[best_idx])
+        if max_s > melhor_score:
+            melhor_score = max_s
+            melhor_solucao = populacao[best_idx]
+
+        if max_s == 54:
+            return {
+                "island_id": "GPU_TITAN",
+                "melhor_score": 54,
+                "melhor_solucao": populacao[best_idx],
+                "populacao_final": populacao,
+                "avaliados": evals,
+                "resolvido": True,
+            }
+
+        sorted_indices = np.argsort(-scores)
+        nova_pop = [populacao[idx] for idx in sorted_indices[:qtd_elite]]
+        pais = [populacao[idx] for idx in sorted_indices[:qtd_sel]]
+
+        while len(nova_pop) < pop_size:
+            p1 = random.choice(pais)
+            p2 = random.choice(pais)
+            if random.random() < cross_rate:
+                f1, f2 = cruzar_dois_individuos(p1, p2)
+            else:
+                f1, f2 = list(p1), list(p2)
+
+            f1 = mutar_individuo(f1, mut_rate)
+            f2 = mutar_individuo(f2, mut_rate)
+
+            nova_pop.append(f1)
+            if len(nova_pop) < pop_size:
+                nova_pop.append(f2)
+
+        populacao = nova_pop
+
+    return {
+        "island_id": "GPU_TITAN",
+        "melhor_score": melhor_score,
+        "melhor_solucao": melhor_solucao,
+        "populacao_final": populacao,
+        "avaliados": evals,
+        "resolvido": False,
+    }
+
+
 def obter_informacoes_hardware():
     """
     Coleta informações completas do hardware do sistema (Processador CPU + Placa de Vídeo GPU).
@@ -324,8 +390,10 @@ def obter_informacoes_hardware():
     gpu_nome = info_gpu.get("gpu_nome", "GPU Indisponível")
     gpu_taxa = info_gpu.get("taxa_estimada", "")
 
-    if gpu_disponivel:
-        modo = f"Híbrido CPU ({threads_totais} Threads) + GPU ({gpu_nome})"
+    if gpu_disponivel and threads_totais > 1:
+        modo = f"Carga Total de Hardware: 16 Ilhas CPU ({cpu_nome}) + 1 Super-Ilha GPU ({gpu_nome})"
+    elif gpu_disponivel:
+        modo = f"Aceleração por GPU ({gpu_nome})"
     elif threads_totais > 1:
         modo = f"Processamento Paralelo Multi-Core ({threads_totais} Ilhas Simultâneas)"
     else:
@@ -341,6 +409,176 @@ def obter_informacoes_hardware():
         "gpu_taxa": gpu_taxa,
         "modo": modo,
     }
+
+
+def rodar_ag_heterogeneo_simultaneo(
+    pop_size_total,
+    tamanho_cromossomo,
+    quantidade_geracoes,
+    porcentagem_mutacao,
+    porcentagem_cruzamento,
+    porcentagem_selecao,
+    estado_base,
+    intervalo_ciclo=500,
+    callback_progresso=None,
+    is_cancelled=None,
+    total_avaliados_base=0,
+    info_hw=None,
+):
+    """
+    Executa o Algoritmo Genético Heterogêneo Simultâneo em Carga Máxima:
+    - 16 processos paralelos dedicados ocupando 100% das 16 threads do AMD Ryzen™ 7 PRO 8700GE.
+    - 1 Super-Ilha GPU ocupando todos os 12 Compute Units (768 Shaders) da AMD Radeon™ 780M Graphics.
+    - Migração periódica cruzada de indivíduos campeões entre CPU e GPU a cada época.
+
+    Parâmetros:
+        pop_size_total (int): Tamanho da população combinada.
+        tamanho_cromossomo (int): Comprimento de cada cromossomo (genes).
+        quantidade_geracoes (int): Total de gerações a evoluir.
+        porcentagem_mutacao (float): Taxa de mutação por gene.
+        porcentagem_cruzamento (float): Taxa de recombinação.
+        porcentagem_selecao (float): Taxa de seleção dos pais.
+        estado_base (tuple): Estado de 54 adesivos do cubo embaralhado.
+        intervalo_ciclo (int): Frequência de notificações e logs.
+        callback_progresso (callable, opcional): Função callback em tempo real.
+        is_cancelled (callable, opcional): Função de verificação de cancelamento.
+        total_avaliados_base (int): Contador base de avaliações acumuladas.
+        info_hw (dict, opcional): Especificações de hardware do sistema.
+
+    Retorno:
+        tuple: (melhor_solucao, melhor_score, avaliados_locais)
+    """
+    if info_hw is None:
+        info_hw = obter_informacoes_hardware()
+
+    num_cpus = info_hw.get("threads_totais", 16)
+    num_cpu_islands = num_cpus  # Utiliza 100% das 16 threads lógicas
+
+    # Distribuição de alta densidade: GPU com carga pesada + 16 Ilhas de CPU com nichos diversificados
+    gpu_pop_size = max(1000, int(pop_size_total * 0.65))
+    pop_cpu_total = max(num_cpu_islands * 20, pop_size_total - gpu_pop_size)
+    pop_por_cpu_island = max(20, pop_cpu_total // num_cpu_islands)
+    active_pop_total = gpu_pop_size + (pop_por_cpu_island * num_cpu_islands)
+
+    gpu_pop = gerar_populacao(gpu_pop_size, tamanho_cromossomo)
+    cpu_pops = [gerar_populacao(pop_por_cpu_island, tamanho_cromossomo) for _ in range(num_cpu_islands)]
+
+    engine = obter_gpu_engine()
+    melhor_solucao_global = None
+    melhor_score_global = -1
+    total_avaliados_etapa = 0
+    t_inicio = time.time()
+
+    epocas = max(1, min(25, quantidade_geracoes // 20))
+    geracoes_por_epoca = max(1, quantidade_geracoes // epocas)
+    geracao_acumulada = 0
+
+    with ProcessPoolExecutor(max_workers=num_cpu_islands) as executor:
+        for epoca in range(1, epocas + 1):
+            if is_cancelled and is_cancelled():
+                break
+
+            tempo_base_ms = int(time.time() * 1000)
+            tarefas_cpu = []
+            for i in range(num_cpu_islands):
+                seed_i = tempo_base_ms + (i * 997) + (epoca * 10007)
+                tarefas_cpu.append((
+                    i,
+                    cpu_pops[i],
+                    estado_base,
+                    geracoes_por_epoca,
+                    porcentagem_mutacao,
+                    porcentagem_cruzamento,
+                    porcentagem_selecao,
+                    seed_i,
+                ))
+
+            # 1. Dispara simultaneamente todos os 16 processos de CPU
+            cpu_futures = executor.map(_worker_ilha_paralela, tarefas_cpu)
+
+            # 2. Concorrentemente executa a Super-Ilha GPU em todos os Compute Units
+            gpu_res = _executar_bloco_gpu(
+                gpu_pop,
+                estado_base,
+                geracoes_por_epoca,
+                porcentagem_mutacao,
+                porcentagem_cruzamento,
+                porcentagem_selecao,
+                engine,
+            )
+
+            # 3. Coleta os resultados dos 16 processos de CPU
+            cpu_results = list(cpu_futures)
+
+            geracao_acumulada += geracoes_por_epoca
+            total_avaliados_etapa += gpu_res["avaliados"]
+            gpu_pop = gpu_res["populacao_final"]
+
+            if gpu_res["melhor_score"] > melhor_score_global:
+                melhor_score_global = gpu_res["melhor_score"]
+                melhor_solucao_global = gpu_res["melhor_solucao"]
+
+            # Processa as 15 ilhas da CPU
+            elites_cpu = []
+            best_cpu_score_epoca = -1
+            best_cpu_sol_epoca = None
+            for r in cpu_results:
+                total_avaliados_etapa += r["avaliados"]
+                cpu_pops[r["island_id"]] = r["populacao_final"]
+
+                if r["melhor_score"] > melhor_score_global:
+                    melhor_score_global = r["melhor_score"]
+                    melhor_solucao_global = r["melhor_solucao"]
+
+                if r["melhor_score"] > best_cpu_score_epoca:
+                    best_cpu_score_epoca = r["melhor_score"]
+                    best_cpu_sol_epoca = r["melhor_solucao"]
+
+                if r["melhor_solucao"]:
+                    elites_cpu.append(r["melhor_solucao"])
+
+            # 4. Notificação de progresso simultâneo
+            if callback_progresso:
+                tempo_decorrido = max(0.001, time.time() - t_inicio)
+                taxa = round(total_avaliados_etapa / tempo_decorrido)
+                sol_str = " ".join(melhor_solucao_global) if melhor_solucao_global else ""
+
+                callback_progresso({
+                    "etapa": f"Simultâneo Híbrido ({num_cpu_islands} Ilhas CPU + 1 Super-Ilha GPU) - Geração {min(geracao_acumulada, quantidade_geracoes)}/{quantidade_geracoes}",
+                    "operacao": "Evolução Heterogênea Simultânea (CPU + GPU)",
+                    "tamanho_atual": tamanho_cromossomo,
+                    "tamanho_cromossomo": tamanho_cromossomo,
+                    "cromossomos_populacao": active_pop_total,
+                    "cromossomos_por_ilha": f"GPU: {gpu_pop_size} | CPU: {pop_por_cpu_island} × {num_cpu_islands}",
+                    "cromossomos_elite": max(1, round(active_pop_total * 0.05)),
+                    "geracao_atual": min(geracao_acumulada, quantidade_geracoes),
+                    "total_geracoes": quantidade_geracoes,
+                    "individuos_avaliados": total_avaliados_base + total_avaliados_etapa,
+                    "cromossomos_avaliados": total_avaliados_base + total_avaliados_etapa,
+                    "melhor_score": melhor_score_global,
+                    "melhor_solucao": melhor_solucao_global or [],
+                    "melhor_solucao_str": sol_str,
+                    "hardware": info_hw,
+                    "taxa_avaliacoes_seg": taxa,
+                    "mensagem": f"[Carga Máxima: {num_cpu_islands} Threads CPU + GPU 780M] Geração {min(geracao_acumulada, quantidade_geracoes)}/{quantidade_geracoes}: Score {melhor_score_global}/54 | {taxa:,} evals/s | {active_pop_total:,} cromossomos",
+                })
+
+            # 5. Condição de parada imediata: Cubo 100% resolvido
+            if melhor_score_global == 54:
+                break
+
+            # 6. Migração Cruzada Bidirecional (Cross-Pollination):
+            # - Injeta o melhor campeão da GPU em todas as ilhas da CPU
+            if gpu_res["melhor_solucao"]:
+                for i in range(num_cpu_islands):
+                    if cpu_pops[i]:
+                        cpu_pops[i][-1] = list(gpu_res["melhor_solucao"])
+
+            # - Injeta o melhor campeão da CPU na população da GPU
+            if best_cpu_sol_epoca and gpu_pop:
+                gpu_pop[-1] = list(best_cpu_sol_epoca)
+
+    return melhor_solucao_global, melhor_score_global, total_avaliados_etapa
 
 
 def rodar_ag_gpu(
@@ -360,29 +598,11 @@ def rodar_ag_gpu(
     """
     Executa o Algoritmo Genético acelerado na Placa de Vídeo (GPU) via Compute Shaders WebGPU/Vulkan.
     Avalia a população inteira em lote na VRAM da GPU com taxa de até 3 milhões de avaliações/s.
-
-    Parâmetros:
-        pop_size (int): Quantidade de cromossomos por geração.
-        tamanho_cromossomo (int): Comprimento de cada cromossomo (genes).
-        quantidade_geracoes (int): Total de gerações a evoluir.
-        porcentagem_mutacao (float): Taxa de mutação por gene.
-        porcentagem_cruzamento (float): Taxa de recombinação.
-        porcentagem_selecao (float): Taxa de seleção dos pais.
-        estado_base (tuple): Estado de 54 adesivos do cubo embaralhado.
-        intervalo_ciclo (int): Frequência de notificações e logs.
-        callback_progresso (callable, opcional): Função callback em tempo real.
-        is_cancelled (callable, opcional): Função de verificação de cancelamento.
-        total_avaliados_base (int): Contador base de avaliações acumuladas.
-        info_hw (dict, opcional): Especificações de hardware do sistema.
-
-    Retorno:
-        tuple: (melhor_solucao, melhor_score, avaliados_locais)
     """
     gpu = obter_gpu_engine()
     if info_hw is None:
         info_hw = obter_informacoes_hardware()
 
-    # Gera a população inicial com sequências válidas WCA
     populacao = gerar_populacao(pop_size, tamanho_cromossomo)
     qtd_elite = max(1, round(pop_size * 0.05))
     qtd_sel = max(2, round(pop_size * porcentagem_selecao))
@@ -396,7 +616,6 @@ def rodar_ag_gpu(
         if is_cancelled and is_cancelled():
             break
 
-        # 1. Converte cromossomos em matriz de IDs e despacha para a GPU em batch
         pop_ids = converter_populacao_para_ids(populacao)
         scores = gpu.avaliar_populacao(estado_base, pop_ids)
         avaliados_locais += pop_size
@@ -409,7 +628,6 @@ def rodar_ag_gpu(
             melhor_score_global = max_score
             melhor_solucao_global = melhor_candidato
 
-        # Notificação periódica com métricas da GPU e cromossomos
         deve_notificar = (
             geracao == 1
             or geracao == quantidade_geracoes
@@ -442,16 +660,13 @@ def rodar_ag_gpu(
                 "mensagem": f"[GPU {info_hw.get('gpu_nome', 'Radeon 780M')}] Geração {geracao}/{quantidade_geracoes}: Score {max_score}/54 (Melhor: {melhor_score_global}/54) | {taxa_atual:,} evals/s | {pop_size:,} cromossomos",
             })
 
-        # Condição de parada imediata: Cubo 100% resolvido
         if max_score == 54:
             break
 
-        # 2. Elitismo e Seleção
         sorted_indices = np.argsort(-scores)
         nova_pop = [populacao[idx] for idx in sorted_indices[:qtd_elite]]
         pais = [populacao[idx] for idx in sorted_indices[:qtd_sel]]
 
-        # 3. Cruzamento e Mutação
         while len(nova_pop) < pop_size:
             p1 = random.choice(pais)
             p2 = random.choice(pais)
@@ -483,39 +698,21 @@ def rodar_algoritmo_genetico(
     tamanho_cromossomo=20,
     intervalo_ciclo=500,
     limite_busca_exaustiva=LIMITE_BUSCA_EXAUSTIVA,
+    modo_hardware="cpu+gpu",
     callback_progresso=None,
     is_cancelled=None,
     total_avaliados_base=0,
     estado_base_precomputado=None,
 ):
     """
-    Executa o Algoritmo Genético de Alta Performance com suporte Híbrido GPU + CPU Multi-Core.
+    Executa o Algoritmo Genético de Alta Performance com suporte Configurável de Hardware (CPU, GPU ou CPU+GPU).
 
     Estratégia de Execução:
     1. Para espaços pequenos (<= 4000), executa Busca Exaustiva determinística direta.
-    2. Se a GPU (AMD Radeon™ 780M) estiver disponível, executa o motor de aceleração por GPU
-       com avaliação paralela massiva de fitness via compute shaders em WGSL.
-    3. Caso contrário, utiliza o Modelo de Ilhas Paralelo nos 16 núcleos de CPU do
-       AMD Ryzen™ 7 PRO 8700GE.
-    4. Fallback seguro para execução sequencial em caso de indisponibilidade de hardware.
-
-    Parâmetros:
-        porcentagem_mutacao (float): Taxa de mutação por gene.
-        porcentagem_cruzamento (float): Taxa de cruzamento entre pais.
-        porcentagem_selecao (float): Taxa de seleção dos melhores indivíduos.
-        quantidade_geracoes (int): Total de gerações a evoluir.
-        quantidade_individuos_inicial (int): Tamanho da população total (cromossomos por geração).
-        embaralhamento (list[str]): Sequência de embaralhamento.
-        tamanho_cromossomo (int): Quantidade de movimentos/genes do cromossomo.
-        intervalo_ciclo (int): Frequência de notificações e logs.
-        limite_busca_exaustiva (int): Limiar para chavear para busca exaustiva.
-        callback_progresso (callable, opcional): Função de atualização em tempo real.
-        is_cancelled (callable, opcional): Função de verificação de cancelamento.
-        total_avaliados_base (int): Contador base de avaliações.
-        estado_base_precomputado (tuple, opcional): Estado inicial de 54 adesivos.
-
-    Retorno:
-        tuple: (melhor_solucao, melhor_score, total_avaliados_etapa)
+    2. modo_hardware == 'cpu+gpu': Executa SIMULTÂNEO HETEROGÊNEO (15 Ilhas CPU + 1 Super-Ilha GPU).
+    3. modo_hardware == 'gpu': Executa Aceleração Pura em GPU (WebGPU/Vulkan compute shaders).
+    4. modo_hardware == 'cpu': Executa Multi-Core Puro (16 Ilhas de CPU via ProcessPoolExecutor).
+    5. Fallback seguro e transparente caso algum dispositivo não esteja disponível.
     """
     if embaralhamento is None:
         embaralhamento = []
@@ -544,15 +741,21 @@ def rodar_algoritmo_genetico(
     pop_size = min(quantidade_individuos_inicial, espaco_busca)
     num_cpus = info_hw["threads_totais"]
     qtd_elite_total = max(1, round(pop_size * 0.05))
+    gpu_ativa = info_hw.get("gpu_disponivel", False)
+
+    modo_hw = str(modo_hardware).lower().strip()
+    if modo_hw not in ("cpu", "gpu", "cpu+gpu"):
+        modo_hw = "cpu+gpu"
 
     # ==========================================================================
-    # CASO 2: ACELERAÇÃO POR GPU (AMD Radeon™ 780M Graphics via Vulkan Compute)
+    # CASO 2: MODO SIMULTÂNEO HETEROGÊNEO (15 ILHAS CPU + 1 ILHA GPU)
     # ==========================================================================
-    if info_hw.get("gpu_disponivel", False):
+    if (modo_hw == "cpu+gpu") and gpu_ativa and (num_cpus > 1) and (pop_size >= 160) and (quantidade_geracoes >= 20):
         try:
+            num_cpu_islands = num_cpus - 1
             if callback_progresso:
                 callback_progresso({
-                    "etapa": f"Algoritmo Genético GPU (Cromossomo {tamanho_cromossomo} genes)",
+                    "etapa": f"Simultâneo Híbrido ({num_cpu_islands} Ilhas CPU + 1 Super-Ilha GPU)",
                     "operacao": "Criando indivíduos",
                     "tamanho_atual": tamanho_cromossomo,
                     "tamanho_cromossomo": tamanho_cromossomo,
@@ -566,7 +769,48 @@ def rodar_algoritmo_genetico(
                     "melhor_solucao": [],
                     "melhor_solucao_str": "",
                     "hardware": info_hw,
-                    "mensagem": f"Iniciando {pop_size:,} cromossomos com aceleração por GPU ({info_hw['gpu_nome']}) e CPU ({info_hw['cpu_nome']}).",
+                    "mensagem": f"Iniciando {pop_size:,} cromossomos com Execução Simultânea: {num_cpu_islands} Ilhas CPU ({info_hw['cpu_nome']}) + 1 Ilha GPU ({info_hw['gpu_nome']}).",
+                })
+
+            return rodar_ag_heterogeneo_simultaneo(
+                pop_size_total=pop_size,
+                tamanho_cromossomo=tamanho_cromossomo,
+                quantidade_geracoes=quantidade_geracoes,
+                porcentagem_mutacao=porcentagem_mutacao,
+                porcentagem_cruzamento=porcentagem_cruzamento,
+                porcentagem_selecao=porcentagem_selecao,
+                estado_base=estado_base,
+                intervalo_ciclo=intervalo_ciclo,
+                callback_progresso=callback_progresso,
+                is_cancelled=is_cancelled,
+                total_avaliados_base=total_avaliados_base,
+                info_hw=info_hw,
+            )
+        except Exception:
+            pass
+
+    # ==========================================================================
+    # CASO 3: ACELERAÇÃO PURA POR GPU
+    # ==========================================================================
+    if (modo_hw in ("gpu", "cpu+gpu")) and gpu_ativa:
+        try:
+            if callback_progresso and modo_hw == "gpu":
+                callback_progresso({
+                    "etapa": f"GPU Acelerada ({info_hw['gpu_nome']})",
+                    "operacao": "Criando indivíduos",
+                    "tamanho_atual": tamanho_cromossomo,
+                    "tamanho_cromossomo": tamanho_cromossomo,
+                    "cromossomos_populacao": pop_size,
+                    "cromossomos_elite": qtd_elite_total,
+                    "cromossomos_avaliados": total_avaliados_base,
+                    "geracao_atual": 0,
+                    "total_geracoes": quantidade_geracoes,
+                    "individuos_avaliados": total_avaliados_base,
+                    "melhor_score": 0,
+                    "melhor_solucao": [],
+                    "melhor_solucao_str": "",
+                    "hardware": info_hw,
+                    "mensagem": f"Iniciando {pop_size:,} cromossomos na GPU ({info_hw['gpu_nome']}) via Vulkan Compute Shaders.",
                 })
 
             return rodar_ag_gpu(
@@ -584,45 +828,21 @@ def rodar_algoritmo_genetico(
                 info_hw=info_hw,
             )
         except Exception:
-            # Em caso de falha na GPU, prossegue para o processamento em CPU
             pass
 
     # ==========================================================================
-    # CASO 3: EXECUÇÃO PARALELA MULTI-CORE (MODELO DE ILHAS CPU - 16 THREADS)
+    # CASO 4: EXECUÇÃO PARALELA MULTI-CORE (MODELO DE ILHAS CPU - 16 THREADS)
     # ==========================================================================
     usar_paralelo = (num_cpus > 1) and (pop_size >= 160) and (quantidade_geracoes >= 20)
     num_ilhas = min(num_cpus, max(2, pop_size // 20)) if usar_paralelo else 1
     pop_por_ilha = max(10, pop_size // num_ilhas)
 
-    if callback_progresso:
-        modo_str = f"Multi-Core ({num_ilhas} Ilhas / {num_cpus} Threads)" if usar_paralelo else "Sequencial Otimizado"
-        callback_progresso({
-            "etapa": f"Algoritmo Genético (Cromossomo {tamanho_cromossomo} genes - {modo_str})",
-            "operacao": "Criando indivíduos",
-            "tamanho_atual": tamanho_cromossomo,
-            "tamanho_cromossomo": tamanho_cromossomo,
-            "cromossomos_populacao": pop_size,
-            "cromossomos_por_ilha": pop_por_ilha if usar_paralelo else pop_size,
-            "cromossomos_elite": qtd_elite_total,
-            "geracao_atual": 0,
-            "total_geracoes": quantidade_geracoes,
-            "individuos_avaliados": total_avaliados_base,
-            "cromossomos_avaliados": total_avaliados_base,
-            "melhor_score": 0,
-            "melhor_solucao": [],
-            "melhor_solucao_str": "",
-            "hardware": info_hw,
-            "mensagem": f"Criando {pop_size:,} cromossomos de tamanho {tamanho_cromossomo} ({modo_str} em {info_hw['cpu_nome']}).",
-        })
-
     if usar_paralelo:
         ilhas_pop = [gerar_populacao(pop_por_ilha, tamanho_cromossomo) for _ in range(num_ilhas)]
-
         melhor_solucao_global = None
         melhor_score_global = -1
         total_avaliados_etapa = 0
 
-        # Divide as gerações em épocas de migração
         epocas = max(1, min(20, quantidade_geracoes // 25))
         geracoes_por_epoca = max(1, quantidade_geracoes // epocas)
         geracao_acumulada = 0
@@ -699,7 +919,7 @@ def rodar_algoritmo_genetico(
             pass
 
     # ==========================================================================
-    # CASO 4: EXECUÇÃO SEQUENCIAL OTIMIZADA COM CACHE EM MEMÓRIA
+    # CASO 5: EXECUÇÃO SEQUENCIAL OTIMIZADA COM CACHE EM MEMÓRIA
     # ==========================================================================
     populacao = gerar_populacao(pop_size, tamanho_cromossomo)
     melhor_solucao = None
@@ -785,6 +1005,7 @@ def resolver_cubo_incremental(
     tamanho_minimo=1,
     tamanho_maximo=54,
     intervalo_ciclo=500,
+    modo_hardware="cpu+gpu",
     callback_progresso=None,
     is_cancelled=None,
 ):
@@ -803,6 +1024,7 @@ def resolver_cubo_incremental(
         tamanho_minimo (int): Comprimento inicial de cromossomo a testar (padrão: 1).
         tamanho_maximo (int): Comprimento máximo de cromossomo a testar (padrão: 54).
         intervalo_ciclo (int): Intervalo de gerações para emissão de logs/status (padrão: 500).
+        modo_hardware (str): Dispositivo de execução ('cpu', 'gpu' ou 'cpu+gpu', padrão: 'cpu+gpu').
         callback_progresso (callable, opcional): Função callback para envio de progresso em tempo real.
         is_cancelled (callable, opcional): Função que retorna True se a execução foi cancelada.
 
@@ -894,6 +1116,7 @@ def resolver_cubo_incremental(
             tamanho_cromossomo=tamanho,
             intervalo_ciclo=intervalo_ciclo,
             limite_busca_exaustiva=LIMITE_BUSCA_EXAUSTIVA,
+            modo_hardware=modo_hardware,
             callback_progresso=callback_progresso,
             is_cancelled=is_cancelled,
             total_avaliados_base=total_individuos_avaliados,

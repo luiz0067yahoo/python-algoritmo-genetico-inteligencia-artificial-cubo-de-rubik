@@ -89,6 +89,7 @@ def worker_solucao(session_id, payload):
             tamanho_minimo=payload.get('tamanho_minimo', 1),
             tamanho_maximo=payload.get('tamanho_maximo', 54),
             intervalo_ciclo=payload.get('intervalo_ciclo', 500),
+            modo_hardware=payload.get('modo_hardware', 'cpu+gpu'),
             callback_progresso=callback,
             is_cancelled=is_cancelled,
         )
@@ -143,6 +144,10 @@ def iniciar_solucao():
     if isinstance(embaralhamento, str):
         embaralhamento = [m for m in embaralhamento.split() if m.strip()]
 
+    modo_hw = str(dados.get('modo_hardware', 'cpu+gpu')).lower().strip()
+    if modo_hw not in ('cpu', 'gpu', 'cpu+gpu'):
+        modo_hw = 'cpu+gpu'
+
     payload = {
         'embaralhamento': embaralhamento,
         'porcentagem_mutacao': float(dados.get('porcentagem_mutacao', 0.05)),
@@ -153,6 +158,7 @@ def iniciar_solucao():
         'tamanho_minimo': max(1, int(dados.get('tamanho_minimo', 1))),
         'tamanho_maximo': max(1, int(dados.get('tamanho_maximo', 54))),
         'intervalo_ciclo': max(1, int(dados.get('intervalo_ciclo', 500))),
+        'modo_hardware': modo_hw,
     }
 
     info_hardware = obter_informacoes_hardware()

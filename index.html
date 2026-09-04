@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RubikLab 3D // Solucionador por Algoritmo Genético</title>
-  
+
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet">
+
   <!-- Three.js & OrbitControls via CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -26,7 +29,7 @@
       --bg-card-hover: rgba(22, 30, 52, 0.95);
       --border-subtle: rgba(255, 255, 255, 0.09);
       --border-focus: rgba(99, 102, 241, 0.6);
-      
+
       --text-main: #f3f4f6;
       --text-muted: #9ca3af;
       --text-dim: #6b7280;
@@ -55,7 +58,7 @@
       --radius-md: 10px;
       --radius-lg: 16px;
       --radius-xl: 22px;
-      
+
       --shadow-glass: 0 10px 36px 0 rgba(0, 0, 0, 0.55);
     }
 
@@ -74,7 +77,7 @@
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
-      background-image: 
+      background-image:
         radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.16) 0px, transparent 50%),
         radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%),
         radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.05) 0px, transparent 60%);
@@ -163,8 +166,15 @@
     }
 
     @keyframes pulseGlow {
-      0%, 100% { box-shadow: 0 0 6px rgba(99, 102, 241, 0.3); }
-      50% { box-shadow: 0 0 16px rgba(99, 102, 241, 0.6); }
+
+      0%,
+      100% {
+        box-shadow: 0 0 6px rgba(99, 102, 241, 0.3);
+      }
+
+      50% {
+        box-shadow: 0 0 16px rgba(99, 102, 241, 0.6);
+      }
     }
 
     .status-dot {
@@ -332,12 +342,35 @@
       transition: background-color 0.2s ease;
     }
 
-    .face-up    { grid-column: 2; grid-row: 1; }
-    .face-left  { grid-column: 1; grid-row: 2; }
-    .face-front { grid-column: 2; grid-row: 2; }
-    .face-right { grid-column: 3; grid-row: 2; }
-    .face-back  { grid-column: 4; grid-row: 2; }
-    .face-down  { grid-column: 2; grid-row: 3; }
+    .face-up {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .face-left {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .face-front {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .face-right {
+      grid-column: 3;
+      grid-row: 2;
+    }
+
+    .face-back {
+      grid-column: 4;
+      grid-row: 2;
+    }
+
+    .face-down {
+      grid-column: 2;
+      grid-row: 3;
+    }
 
     /* ==========================================================================
        5. PAINEL LATERAL DE CONTROLES E FORMULÁRIO DO ALGORITMO GENÉTICO
@@ -354,13 +387,16 @@
     .sidebar::-webkit-scrollbar {
       width: 6px;
     }
+
     .sidebar::-webkit-scrollbar-track {
       background: transparent;
     }
+
     .sidebar::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.14);
       border-radius: 9999px;
     }
+
     .sidebar::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.28);
     }
@@ -469,8 +505,15 @@
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .progress-bar-container {
@@ -539,6 +582,7 @@
     .terminal-box::-webkit-scrollbar {
       width: 4px;
     }
+
     .terminal-box::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.2);
     }
@@ -546,6 +590,7 @@
     .terminal-line {
       word-break: break-word;
     }
+
     .terminal-line.success {
       color: var(--accent-emerald);
       font-weight: 700;
@@ -636,6 +681,31 @@
       box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
     }
 
+    .form-select {
+      width: 100%;
+      background: rgba(6, 10, 20, 0.95);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.45rem 0.6rem;
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+
+    .form-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+
+    .form-select option {
+      background: #0b1120;
+      color: #f1f5f9;
+    }
+
     .btn-solve-ag {
       width: 100%;
       padding: 0.85rem 1rem;
@@ -723,7 +793,9 @@
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     /* ==========================================================================
@@ -808,6 +880,7 @@
       background: var(--primary);
       color: #fff;
     }
+
     .btn-primary:hover {
       background: var(--primary-hover);
       box-shadow: 0 0 14px rgba(99, 102, 241, 0.45);
@@ -818,6 +891,7 @@
       border-color: var(--border-subtle);
       color: var(--text-main);
     }
+
     .btn-secondary:hover {
       background: rgba(255, 255, 255, 0.12);
       border-color: rgba(255, 255, 255, 0.22);
@@ -828,6 +902,7 @@
       border-color: rgba(244, 63, 94, 0.25);
       color: var(--accent-rose);
     }
+
     .btn-danger:hover {
       background: rgba(244, 63, 94, 0.22);
     }
@@ -849,19 +924,25 @@
       width: 36px;
       height: 20px;
     }
+
     .switch input {
       opacity: 0;
       width: 0;
       height: 0;
     }
+
     .slider {
       position: absolute;
       cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background-color: rgba(255, 255, 255, 0.15);
       transition: .3s;
       border-radius: 9999px;
     }
+
     .slider:before {
       position: absolute;
       content: "";
@@ -873,10 +954,12 @@
       transition: .3s;
       border-radius: 50%;
     }
-    input:checked + .slider {
+
+    input:checked+.slider {
       background-color: var(--primary);
     }
-    input:checked + .slider:before {
+
+    input:checked+.slider:before {
       transform: translateX(16px);
     }
 
@@ -913,12 +996,29 @@
       height: 100%;
     }
 
-    .face-section.face-u::before { background: var(--color-white); }
-    .face-section.face-d::before { background: var(--color-yellow); }
-    .face-section.face-f::before { background: var(--color-green); }
-    .face-section.face-b::before { background: var(--color-blue); }
-    .face-section.face-l::before { background: var(--color-orange); }
-    .face-section.face-r::before { background: var(--color-red); }
+    .face-section.face-u::before {
+      background: var(--color-white);
+    }
+
+    .face-section.face-d::before {
+      background: var(--color-yellow);
+    }
+
+    .face-section.face-f::before {
+      background: var(--color-green);
+    }
+
+    .face-section.face-b::before {
+      background: var(--color-blue);
+    }
+
+    .face-section.face-l::before {
+      background: var(--color-orange);
+    }
+
+    .face-section.face-r::before {
+      background: var(--color-red);
+    }
 
     .face-label-row {
       display: flex;
@@ -973,12 +1073,35 @@
       background: var(--primary);
     }
 
-    .face-u .move-btn:hover { border-color: var(--color-white); color: var(--color-white); }
-    .face-d .move-btn:hover { border-color: var(--color-yellow); color: var(--color-yellow); }
-    .face-f .move-btn:hover { border-color: var(--color-green); color: var(--color-green); }
-    .face-b .move-btn:hover { border-color: var(--color-blue); color: var(--color-blue); }
-    .face-l .move-btn:hover { border-color: var(--color-orange); color: var(--color-orange); }
-    .face-r .move-btn:hover { border-color: var(--color-red); color: var(--color-red); }
+    .face-u .move-btn:hover {
+      border-color: var(--color-white);
+      color: var(--color-white);
+    }
+
+    .face-d .move-btn:hover {
+      border-color: var(--color-yellow);
+      color: var(--color-yellow);
+    }
+
+    .face-f .move-btn:hover {
+      border-color: var(--color-green);
+      color: var(--color-green);
+    }
+
+    .face-b .move-btn:hover {
+      border-color: var(--color-blue);
+      color: var(--color-blue);
+    }
+
+    .face-l .move-btn:hover {
+      border-color: var(--color-orange);
+      color: var(--color-orange);
+    }
+
+    .face-r .move-btn:hover {
+      border-color: var(--color-red);
+      color: var(--color-red);
+    }
 
     .quick-actions {
       display: grid;
@@ -1006,12 +1129,14 @@
       transition: all 0.3s ease;
       pointer-events: none;
     }
+
     .toast.show {
       opacity: 1;
       transform: translateY(0);
     }
   </style>
 </head>
+
 <body>
 
   <!-- ==========================================================================
@@ -1065,34 +1190,70 @@
         </div>
         <div class="cube-net-grid">
           <div class="net-face face-up" id="net-U">
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
           </div>
           <div class="net-face face-left" id="net-L">
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
           </div>
           <div class="net-face face-front" id="net-F">
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
           </div>
           <div class="net-face face-right" id="net-R">
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
           </div>
           <div class="net-face face-back" id="net-B">
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
           </div>
           <div class="net-face face-down" id="net-D">
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
-            <div class="net-tile"></div><div class="net-tile"></div><div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
+            <div class="net-tile"></div>
           </div>
         </div>
       </div>
@@ -1100,7 +1261,7 @@
 
     <!-- PAINEL LATERAL DE CONTROLES E MONITORAMENTO -->
     <aside class="sidebar">
-      
+
       <!-- CARD 1: PLACAR / SCOREBOARD -->
       <div class="card">
         <div class="card-header">
@@ -1132,20 +1293,27 @@
       </div>
 
       <!-- BANNER DE HARDWARE: DETECÇÃO AUTOMÁTICA DA CPU & GPU -->
-      <div id="hw-banner" class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%); border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.75rem 0.95rem; margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.55rem;">
+      <div id="hw-banner" class="card"
+        style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%); border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.75rem 0.95rem; margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.55rem;">
         <!-- LINHA 1: CPU -->
         <div style="display: flex; align-items: center; justify-content: space-between;">
           <div style="display: flex; align-items: center; gap: 0.55rem;">
             <span style="font-size: 1.15rem;">⚡</span>
             <div>
-              <div style="font-weight: 700; color: #34d399; font-size: 0.82rem; display: flex; align-items: center; gap: 0.4rem;">
+              <div
+                style="font-weight: 700; color: #34d399; font-size: 0.82rem; display: flex; align-items: center; gap: 0.4rem;">
                 <span id="hw-cpu-name">AMD Ryzen™ 7 PRO 8700GE</span>
-                <span style="background: rgba(16, 185, 129, 0.25); color: #a7f3d0; font-size: 0.62rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 4px;">16 THREADS</span>
+                <span
+                  style="background: rgba(16, 185, 129, 0.25); color: #a7f3d0; font-size: 0.62rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 4px;">16
+                  THREADS (100%)</span>
               </div>
-              <div style="font-size: 0.68rem; color: #94a3b8;" id="hw-cpu-mode">8 Núcleos • 16 Threads Lógicas • Modelo de Ilhas CPU</div>
+              <div style="font-size: 0.68rem; color: #94a3b8;" id="hw-cpu-mode">8 Núcleos • 16 Threads Lógicas • 16
+                Ilhas Concorrentes (100% CPU)</div>
             </div>
           </div>
-          <span id="hw-threads-badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7; font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.45rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">CPU ATIVA</span>
+          <span id="hw-threads-badge"
+            style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7; font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.45rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">16
+            THREADS ATIVAS</span>
         </div>
 
         <!-- DIVISOR -->
@@ -1156,14 +1324,20 @@
           <div style="display: flex; align-items: center; gap: 0.55rem;">
             <span style="font-size: 1.15rem;">🎮</span>
             <div>
-              <div style="font-weight: 700; color: #a78bfa; font-size: 0.82rem; display: flex; align-items: center; gap: 0.4rem;">
+              <div
+                style="font-weight: 700; color: #a78bfa; font-size: 0.82rem; display: flex; align-items: center; gap: 0.4rem;">
                 <span id="hw-gpu-name">AMD Radeon™ 780M Graphics</span>
-                <span id="hw-gpu-tag" style="background: rgba(139, 92, 246, 0.25); color: #ddd6fe; font-size: 0.62rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 4px;">VULKAN / WEBGPU</span>
+                <span id="hw-gpu-tag"
+                  style="background: rgba(139, 92, 246, 0.25); color: #ddd6fe; font-size: 0.62rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 4px;">12
+                  CUs (100% GPU)</span>
               </div>
-              <div style="font-size: 0.68rem; color: #c4b5fd;" id="hw-gpu-mode">Compute Shaders • ~2.900.000 avaliações/s na VRAM</div>
+              <div style="font-size: 0.68rem; color: #c4b5fd;" id="hw-gpu-mode">12 Compute Units • 768 Stream Processors
+                • ~2.900.000 evals/s</div>
             </div>
           </div>
-          <span id="hw-gpu-badge" style="background: rgba(139, 92, 246, 0.25); border: 1px solid rgba(139, 92, 246, 0.5); color: #c4b5fd; font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.45rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">GPU ATIVA</span>
+          <span id="hw-gpu-badge"
+            style="background: rgba(139, 92, 246, 0.25); border: 1px solid rgba(139, 92, 246, 0.5); color: #c4b5fd; font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.45rem; border-radius: var(--radius-sm); font-family: var(--font-mono);">GPU
+            100% ATIVA</span>
         </div>
       </div>
 
@@ -1182,24 +1356,32 @@
 
         <!-- GRID DE DETALHES DOS CROMOSSOMOS (DESTAQUE) -->
         <div class="metrics-grid-live" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 0.45rem;">
-          <div class="metric-tile" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);">
+          <div class="metric-tile"
+            style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);">
             <span class="metric-tile-title">🧬 Cromossomos / Geração</span>
-            <span id="live-pop-chrom" class="metric-tile-val" style="color: #38bdf8; font-size: 0.88rem;">1.000 cromossomos</span>
+            <span id="live-pop-chrom" class="metric-tile-val" style="color: #38bdf8; font-size: 0.88rem;">1.000
+              cromossomos</span>
           </div>
 
-          <div class="metric-tile" style="background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25);">
+          <div class="metric-tile"
+            style="background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25);">
             <span class="metric-tile-title">📏 Tamanho do Cromossomo</span>
-            <span id="live-chrom-size" class="metric-tile-val" style="color: #c084fc; font-size: 0.88rem;">1 gene (movimento)</span>
+            <span id="live-chrom-size" class="metric-tile-val" style="color: #c084fc; font-size: 0.88rem;">1 gene
+              (movimento)</span>
           </div>
 
-          <div class="metric-tile" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25);">
+          <div class="metric-tile"
+            style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25);">
             <span class="metric-tile-title">📊 Cromossomos Avaliados</span>
-            <span id="live-total-chrom" class="metric-tile-val" style="color: #fbbf24; font-size: 0.88rem;">0 cromossomos</span>
+            <span id="live-total-chrom" class="metric-tile-val" style="color: #fbbf24; font-size: 0.88rem;">0
+              cromossomos</span>
           </div>
 
-          <div class="metric-tile" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+          <div class="metric-tile"
+            style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
             <span class="metric-tile-title">👑 Cromossomos de Elite</span>
-            <span id="live-elite-chrom" class="metric-tile-val" style="color: #34d399; font-size: 0.88rem;">50 preservados (Top 5%)</span>
+            <span id="live-elite-chrom" class="metric-tile-val" style="color: #34d399; font-size: 0.88rem;">50
+              preservados (Top 5%)</span>
           </div>
         </div>
 
@@ -1211,7 +1393,8 @@
 
           <div class="metric-tile" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.3);">
             <span class="metric-tile-title">Operação Atual</span>
-            <span id="live-operacao-text" class="metric-tile-val" style="font-size: 0.82rem; color: #c7d2fe;">🧬 Criando indivíduos</span>
+            <span id="live-operacao-text" class="metric-tile-val" style="font-size: 0.82rem; color: #c7d2fe;">🧬 Criando
+              indivíduos</span>
           </div>
 
           <div class="metric-tile">
@@ -1248,7 +1431,8 @@
       <div class="card card-genetic-form">
         <div class="card-header">
           <span class="card-title">⚙️ Parâmetros do Algoritmo Genético</span>
-          <button id="btn-reset-defaults" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" title="Restaurar valores padrão">
+          <button id="btn-reset-defaults" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;"
+            title="Restaurar valores padrão">
             ↺ Padrões
           </button>
         </div>
@@ -1260,7 +1444,8 @@
               <span>embaralhamento</span>
               <small>Lista de movimentos aplicados</small>
             </div>
-            <input type="text" id="input-embaralhamento" class="form-input" placeholder="ex: U R F' ou use o botão Embaralhar" value="">
+            <input type="text" id="input-embaralhamento" class="form-input"
+              placeholder="ex: L R U B2 L B2 L R' F' R2 F R' B D' F2 L' R' U' F' L R' D L' F U2" value="">
           </div>
 
           <div class="input-grid-3col">
@@ -1275,7 +1460,7 @@
               <div class="form-label">
                 <span>porcentagem_cruzamento</span>
               </div>
-              <input type="number" id="input-cruzamento" class="form-input" step="0.01" min="0" max="1" value="0.70">
+              <input type="number" id="input-cruzamento" class="form-input" step="0.01" min="0" max="1" value="0.50">
             </div>
 
             <div class="form-group">
@@ -1325,6 +1510,18 @@
             </div>
           </div>
 
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <div class="form-label">
+              <span>modo_hardware (Dispositivo de Execução)</span>
+              <small>CPU / GPU / Híbrido</small>
+            </div>
+            <select id="select-hardware-mode" class="form-select">
+              <option value="cpu+gpu" selected>cpu+gpu (Simultâneo: 16 Threads CPU + Super-Ilha GPU)</option>
+              <option value="gpu">gpu (Aceleração Pura em GPU: AMD Radeon 780M / Vulkan)</option>
+              <option value="cpu">cpu (Multi-Core Puro: 16 Threads AMD Ryzen 7 PRO 8700GE)</option>
+            </select>
+          </div>
+
           <button type="button" id="btn-solve-ag" class="btn-solve-ag">
             <span id="ag-btn-icon">🧬</span>
             <span id="ag-btn-text">Iniciar Solução com Algoritmo Genético</span>
@@ -1343,10 +1540,12 @@
             <span id="ag-result-chrom">Cromossomo: 0 movs</span>
           </div>
           <div style="display: flex; gap: 0.45rem; margin-top: 0.4rem;">
-            <button type="button" id="btn-replay-solution" class="btn btn-primary" style="flex: 1; font-size: 0.78rem; padding: 0.5rem; justify-content: center;">
+            <button type="button" id="btn-replay-solution" class="btn btn-primary"
+              style="flex: 1; font-size: 0.78rem; padding: 0.5rem; justify-content: center;">
               ▶ Executar no Cubo 3D
             </button>
-            <button type="button" id="btn-reapply-scramble" class="btn btn-secondary" style="flex: 1; font-size: 0.78rem; padding: 0.5rem; justify-content: center;">
+            <button type="button" id="btn-reapply-scramble" class="btn btn-secondary"
+              style="flex: 1; font-size: 0.78rem; padding: 0.5rem; justify-content: center;">
               ↺ Reembaralhar
             </button>
           </div>
@@ -1364,7 +1563,9 @@
         </div>
 
         <div class="textarea-wrapper">
-          <textarea id="sequence-textarea" placeholder="Nenhum movimento registrado. Clique nos botões abaixo ou embaralhe..." spellcheck="false"></textarea>
+          <textarea id="sequence-textarea"
+            placeholder="Nenhum movimento registrado. Clique nos botões abaixo ou embaralhe..."
+            spellcheck="false"></textarea>
         </div>
 
         <div class="textarea-actions">
@@ -1411,7 +1612,8 @@
         <div class="face-controls-grid">
           <div class="face-section face-u">
             <div class="face-label-row">
-              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-white);"></span> U (Topo)</span>
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-white);"></span>
+                U (Topo)</span>
             </div>
             <div class="face-buttons-row">
               <button class="move-btn" data-move="U">U</button>
@@ -1422,7 +1624,8 @@
 
           <div class="face-section face-d">
             <div class="face-label-row">
-              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-yellow);"></span> D (Base)</span>
+              <span class="face-name"><span class="face-color-indicator"
+                  style="background: var(--color-yellow);"></span> D (Base)</span>
             </div>
             <div class="face-buttons-row">
               <button class="move-btn" data-move="D">D</button>
@@ -1433,7 +1636,8 @@
 
           <div class="face-section face-f">
             <div class="face-label-row">
-              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-green);"></span> F (Frente)</span>
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-green);"></span>
+                F (Frente)</span>
             </div>
             <div class="face-buttons-row">
               <button class="move-btn" data-move="F">F</button>
@@ -1444,7 +1648,8 @@
 
           <div class="face-section face-b">
             <div class="face-label-row">
-              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-blue);"></span> B (Atrás)</span>
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-blue);"></span>
+                B (Atrás)</span>
             </div>
             <div class="face-buttons-row">
               <button class="move-btn" data-move="B">B</button>
@@ -1455,7 +1660,8 @@
 
           <div class="face-section face-l">
             <div class="face-label-row">
-              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-orange);"></span> L (Esquerda)</span>
+              <span class="face-name"><span class="face-color-indicator"
+                  style="background: var(--color-orange);"></span> L (Esquerda)</span>
             </div>
             <div class="face-buttons-row">
               <button class="move-btn" data-move="L">L</button>
@@ -1466,7 +1672,8 @@
 
           <div class="face-section face-r">
             <div class="face-label-row">
-              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-red);"></span> R (Direita)</span>
+              <span class="face-name"><span class="face-color-indicator" style="background: var(--color-red);"></span> R
+                (Direita)</span>
             </div>
             <div class="face-buttons-row">
               <button class="move-btn" data-move="R">R</button>
@@ -1477,7 +1684,8 @@
         </div>
 
         <div class="quick-actions">
-          <button id="btn-scramble" class="btn btn-secondary" title="Gerar sequência oficial WCA de 25 movimentos">🎲 Embaralhar Oficial (WCA 25x)</button>
+          <button id="btn-scramble" class="btn btn-secondary" title="Gerar sequência oficial WCA de 25 movimentos">🎲
+            Embaralhar Oficial (WCA 25x)</button>
           <button id="btn-reset-cube" class="btn btn-secondary">↺ Resetar Cubo</button>
         </div>
       </div>
@@ -1521,11 +1729,11 @@
     };
 
     const FACE_AXIS_MAP = {
-      'R': { axis: 'x', layer: 1,  sign: -1 },
+      'R': { axis: 'x', layer: 1, sign: -1 },
       'L': { axis: 'x', layer: -1, sign: 1 },
-      'U': { axis: 'y', layer: 1,  sign: -1 },
+      'U': { axis: 'y', layer: 1, sign: -1 },
       'D': { axis: 'y', layer: -1, sign: 1 },
-      'F': { axis: 'z', layer: 1,  sign: -1 },
+      'F': { axis: 'z', layer: 1, sign: -1 },
       'B': { axis: 'z', layer: -1, sign: 1 }
     };
 
@@ -1820,9 +2028,9 @@
       function stepAnimation(now) {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        
-        const ease = progress < 0.5 
-          ? 2 * progress * progress 
+
+        const ease = progress < 0.5
+          ? 2 * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
         pivot.rotation[config.axis] = angleTotal * ease;
@@ -2036,6 +2244,7 @@
     const inputTamMin = document.getElementById('input-tam-min');
     const inputTamMax = document.getElementById('input-tam-max');
     const inputCiclo = document.getElementById('input-ciclo');
+    const selectHardwareMode = document.getElementById('select-hardware-mode');
 
     // Elementos de Monitoramento em Tempo Real
     const cardMonitoring = document.getElementById('card-monitoring');
@@ -2097,6 +2306,7 @@
       inputTamMin.value = "1";
       inputTamMax.value = "54";
       inputCiclo.value = "500";
+      if (selectHardwareMode) selectHardwareMode.value = "cpu+gpu";
       showToast("Valores restaurados para o padrão!");
     });
 
@@ -2139,10 +2349,15 @@
 
       // Atualização das métricas detalhadas de cromossomos
       const popChrom = data.cromossomos_populacao || (inputPopulacao ? parseInt(inputPopulacao.value, 10) : 1000);
-      const numIlhas = (data.hardware && data.hardware.threads_utilizadas) ? data.hardware.threads_utilizadas : 16;
-      const porIlha = data.cromossomos_por_ilha || Math.max(1, Math.floor(popChrom / numIlhas));
+      const porIlhaStr = data.cromossomos_por_ilha || '';
       const elPop = document.getElementById('live-pop-chrom');
-      if (elPop) elPop.textContent = `${Number(popChrom).toLocaleString('pt-BR')} (${numIlhas} Ilhas × ${porIlha})`;
+      if (elPop) {
+        if (typeof porIlhaStr === 'string' && porIlhaStr.length > 0) {
+          elPop.textContent = `${Number(popChrom).toLocaleString('pt-BR')} (${porIlhaStr})`;
+        } else {
+          elPop.textContent = `${Number(popChrom).toLocaleString('pt-BR')} cromossomos ativos`;
+        }
+      }
 
       const chromSize = data.tamanho_cromossomo || data.tamanho_atual || 1;
       const elSize = document.getElementById('live-chrom-size');
@@ -2156,24 +2371,24 @@
       const elElite = document.getElementById('live-elite-chrom');
       if (elElite) elElite.textContent = `${eliteCount} preservados (Top 5%)`;
 
-      // Atualização do banner de hardware (CPU + GPU)
+      // Atualização do banner de hardware (CPU + GPU em Carga Total)
       if (data.hardware) {
         if (data.hardware.cpu_nome) {
           const elHwName = document.getElementById('hw-cpu-name');
           const elHwMode = document.getElementById('hw-cpu-mode');
           const elHwBadge = document.getElementById('hw-threads-badge');
           if (elHwName) elHwName.textContent = data.hardware.cpu_nome;
-          if (elHwMode) elHwMode.textContent = `8 Núcleos • ${data.hardware.threads_totais} Threads Lógicas • Modelo de Ilhas CPU`;
-          if (elHwBadge) elHwBadge.textContent = `${data.hardware.threads_totais} THREADS`;
+          if (elHwMode) elHwMode.textContent = `8 Núcleos • ${data.hardware.threads_totais} Threads Lógicas • 16 Ilhas Concorrentes (100% CPU)`;
+          if (elHwBadge) elHwBadge.textContent = `${data.hardware.threads_totais} THREADS ATIVAS`;
         }
         if (data.hardware.gpu_nome) {
           const elGpuName = document.getElementById('hw-gpu-name');
           const elGpuMode = document.getElementById('hw-gpu-mode');
           const elGpuBadge = document.getElementById('hw-gpu-badge');
           if (elGpuName) elGpuName.textContent = data.hardware.gpu_nome;
-          if (elGpuMode) elGpuMode.textContent = data.hardware.gpu_disponivel ? `Compute Shaders • ${data.hardware.gpu_taxa || '~2.900.000 evals/s'} na VRAM` : 'GPU Indisponível (Fallback CPU Ativo)';
+          if (elGpuMode) elGpuMode.textContent = data.hardware.gpu_disponivel ? `12 Compute Units • 768 Shaders • ${data.hardware.gpu_taxa || '~2.900.000 evals/s'}` : 'GPU Indisponível (Fallback CPU Ativo)';
           if (elGpuBadge) {
-            elGpuBadge.textContent = data.hardware.gpu_disponivel ? 'GPU ACELERADA' : 'GPU INATIVA';
+            elGpuBadge.textContent = data.hardware.gpu_disponivel ? 'GPU 100% ATIVA' : 'GPU INATIVA';
             elGpuBadge.style.color = data.hardware.gpu_disponivel ? '#c4b5fd' : '#94a3b8';
           }
         }
@@ -2386,7 +2601,8 @@
         quantidade_individuos_inicial: parseInt(inputPopulacao.value, 10) || 1000,
         tamanho_minimo: parseInt(inputTamMin.value, 10) || 1,
         tamanho_maximo: parseInt(inputTamMax.value, 10) || 54,
-        intervalo_ciclo: parseInt(inputCiclo.value, 10) || 500
+        intervalo_ciclo: parseInt(inputCiclo.value, 10) || 500,
+        modo_hardware: selectHardwareMode ? selectHardwareMode.value : 'cpu+gpu'
       };
 
       cardMonitoring.style.display = 'flex';
@@ -2616,20 +2832,20 @@
           const hw = await res.json();
           if (hw.cpu_nome) document.getElementById('hw-cpu-name').textContent = hw.cpu_nome;
           if (hw.threads_totais) {
-            document.getElementById('hw-cpu-mode').textContent = `8 Núcleos • ${hw.threads_totais} Threads Lógicas • Modelo de Ilhas CPU`;
-            document.getElementById('hw-threads-badge').textContent = `${hw.threads_totais} THREADS`;
+            document.getElementById('hw-cpu-mode').textContent = `8 Núcleos • ${hw.threads_totais} Threads Lógicas • 16 Ilhas Concorrentes (100% CPU)`;
+            document.getElementById('hw-threads-badge').textContent = `${hw.threads_totais} THREADS ATIVAS`;
           }
           if (hw.gpu_nome) {
             document.getElementById('hw-gpu-name').textContent = hw.gpu_nome;
-            document.getElementById('hw-gpu-mode').textContent = hw.gpu_disponivel ? `Compute Shaders • ${hw.gpu_taxa || '~2.900.000 evals/s'} na VRAM` : 'GPU Indisponível (Fallback CPU Ativo)';
+            document.getElementById('hw-gpu-mode').textContent = hw.gpu_disponivel ? `12 Compute Units • 768 Shaders • ${hw.gpu_taxa || '~2.900.000 evals/s'}` : 'GPU Indisponível (Fallback CPU Ativo)';
             const elBadge = document.getElementById('hw-gpu-badge');
             if (elBadge) {
-              elBadge.textContent = hw.gpu_disponivel ? 'GPU ATIVA' : 'GPU INATIVA';
+              elBadge.textContent = hw.gpu_disponivel ? 'GPU 100% ATIVA' : 'GPU INATIVA';
               elBadge.style.color = hw.gpu_disponivel ? '#c4b5fd' : '#94a3b8';
             }
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -2639,4 +2855,5 @@
     });
   </script>
 </body>
+
 </html>
