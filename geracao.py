@@ -377,8 +377,8 @@ def _worker_ilha_paralela(args):
 
 def _executar_bloco_gpu(pop_inicial, estado_base, geracoes, mut_rate, cross_rate, sel_rate, engine):
     """
-    Executa a evolução da Super-Ilha GPU em paralelo direto na placa de vídeo
-    enquanto os 15 núcleos de CPU estão trabalhando simultaneamente.
+    Executa a evolução da Super-Ilha GPU em paralelo direto na placa de vídeo (Compute Shaders WebGPU/Vulkan).
+    Avalia em lote na VRAM da GPU com mutações avançadas e busca memética nos campeões.
     """
     populacao = pop_inicial
     pop_size = len(populacao)
@@ -414,6 +414,29 @@ def _executar_bloco_gpu(pop_inicial, estado_base, geracoes, mut_rate, cross_rate
         nova_pop = [populacao[idx] for idx in sorted_indices[:qtd_elite]]
         pais = [populacao[idx] for idx in sorted_indices[:qtd_sel]]
 
+        # Busca local memética nos top candidatos da GPU
+        for rank in range(min(2, len(sorted_indices))):
+            top_cand = populacao[sorted_indices[rank]]
+            n_genes = len(top_cand)
+            if n_genes > 0:
+                for idx_gene in random.sample(range(n_genes), min(n_genes, 2)):
+                    cand_var = list(top_cand)
+                    cand_var[idx_gene] = random.choice(MOVIMENTOS)
+                    st_cand = aplicar_movimentos(estado_base, cand_var)
+                    sc_cand = contar_adesivos_corretos(st_cand)
+                    if sc_cand > melhor_score:
+                        melhor_score = sc_cand
+                        melhor_solucao = cand_var
+                        if sc_cand == 54:
+                            return {
+                                "island_id": "GPU_TITAN",
+                                "melhor_score": 54,
+                                "melhor_solucao": cand_var,
+                                "populacao_final": populacao,
+                                "avaliados": evals,
+                                "resolvido": True,
+                            }
+
         while len(nova_pop) < pop_size:
             p1 = random.choice(pais)
             p2 = random.choice(pais)
@@ -422,8 +445,8 @@ def _executar_bloco_gpu(pop_inicial, estado_base, geracoes, mut_rate, cross_rate
             else:
                 f1, f2 = list(p1), list(p2)
 
-            f1 = mutar_individuo(f1, mut_rate)
-            f2 = mutar_individuo(f2, mut_rate)
+            f1 = mutar_individuo_avancado(f1, mut_rate)
+            f2 = mutar_individuo_avancado(f2, mut_rate)
 
             nova_pop.append(f1)
             if len(nova_pop) < pop_size:
@@ -1238,36 +1261,51 @@ def resolver_cubo_por_estagios(
     if modo_hw not in ("cpu", "gpu", "cpu+gpu"):
         modo_hw = "cpu+gpu"
 
-    usar_gpu = (modo_hw in ("gpu", "cpu+gpu")) and gpu_ativa
-    usar_multi_cpu = (modo_hw in ("cpu", "cpu+gpu")) and (num_cpus > 1)
-    num_cpu_islands = num_cpus if usar_multi_cpu else 1
+    # Determinação inequívoca dos modos de execução
+    if modo_hw == "gpu" and gpu_ativa:
+        usar_gpu_somente = True
+        usar_hibrido = False
+        usar_multi_cpu = False
+    elif modo_hw == "cpu+gpu" and gpu_ativa and (num_cpus > 1):
+        usar_gpu_somente = False
+        usar_hibrido = True
+        usar_multi_cpu = True
+    else:
+        # Fallback para CPU Multi-Core ou modo CPU selecionado
+        usar_gpu_somente = False
+        usar_hibrido = False
+        usar_multi_cpu = (num_cpus > 1)
 
-    engine_gpu = obter_gpu_engine() if usar_gpu else None
+    num_cpu_islands = num_cpus if usar_multi_cpu else 1
+    engine_gpu = obter_gpu_engine() if (usar_gpu_somente or usar_hibrido) else None
 
     # Configuração da distribuição de população
-    if usar_gpu and usar_multi_cpu:
+    if usar_gpu_somente:
+        gpu_pop_size = pop_size
+        pop_por_cpu_island = 0
+        active_pop_total = gpu_pop_size
+        por_ilha_str = f"GPU 100%: {gpu_pop_size:,} cromossomos (Compute Shaders WebGPU/Vulkan)"
+    elif usar_hibrido:
         gpu_pop_size = max(500, int(pop_size * 0.60))
         pop_cpu_total = max(num_cpu_islands * 10, pop_size - gpu_pop_size)
         pop_por_cpu_island = max(10, pop_cpu_total // num_cpu_islands)
         active_pop_total = gpu_pop_size + (pop_por_cpu_island * num_cpu_islands)
-        por_ilha_str = f"GPU: {gpu_pop_size} | CPU: {pop_por_cpu_island} × {num_cpu_islands}"
-    elif usar_multi_cpu:
+        por_ilha_str = f"GPU: {gpu_pop_size:,} | CPU: {pop_por_cpu_island} × {num_cpu_islands} Ilhas"
+    else:
         gpu_pop_size = 0
         pop_por_cpu_island = max(10, pop_size // num_cpu_islands)
         active_pop_total = pop_por_cpu_island * num_cpu_islands
-        por_ilha_str = f"{pop_por_cpu_island} ind/ilha ({num_cpu_islands} threads)"
-    else:
-        gpu_pop_size = 0
-        pop_por_cpu_island = pop_size
-        active_pop_total = pop_size
-        por_ilha_str = f"{pop_size} indivíduos (Sequencial)"
+        por_ilha_str = f"CPU: {pop_por_cpu_island} ind/ilha ({num_cpu_islands} threads)"
 
     total_avaliados = 0
     geracoes_por_estagio = max(1, quantidade_geracoes // 4)
     solucao_acumulada = []
     geracao_global = 0
 
-    with ProcessPoolExecutor(max_workers=num_cpu_islands) as executor:
+    # ==========================================================================
+    # CASO A: MODO SOMENTE GPU (100% COMPUTE SHADERS WEBGPU / VULKAN)
+    # ==========================================================================
+    if usar_gpu_somente and engine_gpu:
         for idx_estagio, (nome_etapa, desc_op, ini_mov, fim_mov) in enumerate(estagios, 1):
             if is_cancelled and is_cancelled():
                 break
@@ -1287,27 +1325,12 @@ def resolver_cubo_por_estagios(
 
                 st_estado_passo = aplicar_movimentos(st_base, solucao_acumulada)
 
-                # Cria as populações iniciais das ilhas da CPU
-                cpu_pops = []
-                for _ in range(num_cpu_islands):
-                    ilha_p = gerar_populacao(pop_por_cpu_island, tam_passo)
-                    if genes_passo:
-                        ilha_p[0] = list(genes_passo)
-                        for m_idx in range(1, min(len(ilha_p), 5)):
-                            ilha_p[m_idx] = mutar_individuo_avancado(list(genes_passo), porcentagem_mutacao)
-                    cpu_pops.append(ilha_p)
+                gpu_pop = gerar_populacao(gpu_pop_size, tam_passo)
+                if genes_passo:
+                    gpu_pop[0] = list(genes_passo)
+                    for m_idx in range(1, min(len(gpu_pop), 20)):
+                        gpu_pop[m_idx] = mutar_individuo_avancado(list(genes_passo), porcentagem_mutacao)
 
-                # Cria a população da GPU se ativa
-                if usar_gpu and engine_gpu:
-                    gpu_pop = gerar_populacao(gpu_pop_size, tam_passo)
-                    if genes_passo:
-                        gpu_pop[0] = list(genes_passo)
-                        for m_idx in range(1, min(len(gpu_pop), 10)):
-                            gpu_pop[m_idx] = mutar_individuo_avancado(list(genes_passo), porcentagem_mutacao)
-                else:
-                    gpu_pop = []
-
-                # Executa a evolução paralela do passo em épocas
                 epocas_passo = max(1, min(10, gens_por_passo // 10))
                 gens_por_epoca = max(1, gens_por_passo // epocas_passo)
 
@@ -1315,52 +1338,19 @@ def resolver_cubo_por_estagios(
                     if is_cancelled and is_cancelled():
                         break
 
-                    tempo_base_ms = int(time.time() * 1000)
-                    tarefas_cpu = []
-                    for i in range(num_cpu_islands):
-                        seed_i = tempo_base_ms + (i * 997) + (epoca * 10007)
-                        tarefas_cpu.append((
-                            i,
-                            cpu_pops[i],
-                            st_estado_passo,
-                            gens_por_epoca,
-                            porcentagem_mutacao,
-                            porcentagem_cruzamento,
-                            porcentagem_selecao,
-                            seed_i,
-                        ))
-
-                    # 1. Dispara em paralelo todos os 16 processos de CPU
-                    cpu_futures = executor.map(_worker_ilha_paralela, tarefas_cpu)
-
-                    # 2. Concorrentemente executa a Super-Ilha de GPU se ativa
-                    gpu_res = None
-                    if usar_gpu and engine_gpu and gpu_pop:
-                        gpu_res = _executar_bloco_gpu(
-                            gpu_pop,
-                            st_estado_passo,
-                            gens_por_epoca,
-                            porcentagem_mutacao,
-                            porcentagem_cruzamento,
-                            porcentagem_selecao,
-                            engine_gpu,
-                        )
-
-                    # 3. Coleta os resultados dos processos de CPU
-                    cpu_results = list(cpu_futures)
-
-                    # Atualiza métricas acumuladas
-                    for r in cpu_results:
-                        total_avaliados += r["avaliados"]
-                        cpu_pops[r["island_id"]] = r["populacao_final"]
-
-                    if gpu_res:
-                        total_avaliados += gpu_res["avaliados"]
-                        gpu_pop = gpu_res["populacao_final"]
-
+                    gpu_res = _executar_bloco_gpu(
+                        gpu_pop,
+                        st_estado_passo,
+                        gens_por_epoca,
+                        porcentagem_mutacao,
+                        porcentagem_cruzamento,
+                        porcentagem_selecao,
+                        engine_gpu,
+                    )
+                    total_avaliados += gpu_res["avaliados"]
+                    gpu_pop = gpu_res["populacao_final"]
                     geracao_global = min(quantidade_geracoes, geracao_global + gens_por_epoca)
 
-                # Consolidação do passo atual
                 sol_atual_tentativa = solucao_acumulada + genes_passo
                 st_atual = aplicar_movimentos(st_base, sol_atual_tentativa)
                 sc_atual, det_atual = calcular_score_estado(
@@ -1390,10 +1380,156 @@ def resolver_cubo_por_estagios(
                         "detalhes_fitness": det_atual,
                         "hardware": info_hw,
                         "taxa_avaliacoes_seg": taxa_atual,
-                        "mensagem": f"[Carga Total Multi-Core ({num_cpu_islands} threads) + GPU] Geração {geracao_global}/{quantidade_geracoes}: Score {det_atual['adesivos_corretos']}/54 ({sc_atual:.1f} pts) | {taxa_atual:,} evals/s | {len(sol_atual_tentativa)} movs",
+                        "mensagem": f"[GPU 100% {info_hw.get('gpu_nome', 'Radeon 780M')}] Geração {geracao_global}/{quantidade_geracoes}: Score {det_atual['adesivos_corretos']}/54 ({sc_atual:.1f} pts) | {taxa_atual:,} evals/s | {len(sol_atual_tentativa)} movs",
                     })
 
             solucao_acumulada.extend(movs_estagio)
+
+    # ==========================================================================
+    # CASO B: MODO HÍBRIDO (CPU 16 THREADS + GPU) OU MODO MULTI-CORE CPU
+    # ==========================================================================
+    else:
+        with ProcessPoolExecutor(max_workers=num_cpu_islands) as executor:
+            for idx_estagio, (nome_etapa, desc_op, ini_mov, fim_mov) in enumerate(estagios, 1):
+                if is_cancelled and is_cancelled():
+                    break
+
+                movs_estagio = movs_simplificados[ini_mov:fim_mov]
+                passos_sub = max(2, min(4, len(movs_estagio)))
+                gens_por_passo = max(1, geracoes_por_estagio // passos_sub)
+
+                for p_idx in range(passos_sub):
+                    if is_cancelled and is_cancelled():
+                        break
+
+                    genes_passo = movs_estagio[: int(round((p_idx + 1) * len(movs_estagio) / passos_sub))]
+                    tam_passo = len(genes_passo)
+                    if tam_passo == 0:
+                        continue
+
+                    st_estado_passo = aplicar_movimentos(st_base, solucao_acumulada)
+
+                    # Cria as populações iniciais das ilhas da CPU
+                    cpu_pops = []
+                    for _ in range(num_cpu_islands):
+                        ilha_p = gerar_populacao(pop_por_cpu_island, tam_passo)
+                        if genes_passo:
+                            ilha_p[0] = list(genes_passo)
+                            for m_idx in range(1, min(len(ilha_p), 5)):
+                                ilha_p[m_idx] = mutar_individuo_avancado(list(genes_passo), porcentagem_mutacao)
+                        cpu_pops.append(ilha_p)
+
+                    # Cria a população da GPU se ativa no modo híbrido
+                    if usar_hibrido and engine_gpu:
+                        gpu_pop = gerar_populacao(gpu_pop_size, tam_passo)
+                        if genes_passo:
+                            gpu_pop[0] = list(genes_passo)
+                            for m_idx in range(1, min(len(gpu_pop), 10)):
+                                gpu_pop[m_idx] = mutar_individuo_avancado(list(genes_passo), porcentagem_mutacao)
+                    else:
+                        gpu_pop = []
+
+                    # Executa a evolução paralela do passo em épocas
+                    epocas_passo = max(1, min(10, gens_por_passo // 10))
+                    gens_por_epoca = max(1, gens_por_passo // epocas_passo)
+
+                    for epoca in range(1, epocas_passo + 1):
+                        if is_cancelled and is_cancelled():
+                            break
+
+                        tempo_base_ms = int(time.time() * 1000)
+                        tarefas_cpu = []
+                        for i in range(num_cpu_islands):
+                            seed_i = tempo_base_ms + (i * 997) + (epoca * 10007)
+                            tarefas_cpu.append((
+                                i,
+                                cpu_pops[i],
+                                st_estado_passo,
+                                gens_por_epoca,
+                                porcentagem_mutacao,
+                                porcentagem_cruzamento,
+                                porcentagem_selecao,
+                                seed_i,
+                            ))
+
+                        # 1. Dispara em paralelo todos os processos de CPU
+                        cpu_futures = executor.map(_worker_ilha_paralela, tarefas_cpu)
+
+                        # 2. Concorrentemente executa a Super-Ilha de GPU se híbrido
+                        gpu_res = None
+                        if usar_hibrido and engine_gpu and gpu_pop:
+                            gpu_res = _executar_bloco_gpu(
+                                gpu_pop,
+                                st_estado_passo,
+                                gens_por_epoca,
+                                porcentagem_mutacao,
+                                porcentagem_cruzamento,
+                                porcentagem_selecao,
+                                engine_gpu,
+                            )
+
+                        # 3. Coleta os resultados dos processos de CPU
+                        cpu_results = list(cpu_futures)
+
+                        # Atualiza métricas acumuladas
+                        best_cpu_sol = None
+                        best_cpu_score = -1
+                        for r in cpu_results:
+                            total_avaliados += r["avaliados"]
+                            cpu_pops[r["island_id"]] = r["populacao_final"]
+                            if r["melhor_score"] > best_cpu_score:
+                                best_cpu_score = r["melhor_score"]
+                                best_cpu_sol = r["melhor_solucao"]
+
+                        if gpu_res:
+                            total_avaliados += gpu_res["avaliados"]
+                            gpu_pop = gpu_res["populacao_final"]
+                            # Migração cruzada CPU <-> GPU
+                            if gpu_res["melhor_solucao"]:
+                                for i in range(num_cpu_islands):
+                                    if cpu_pops[i]:
+                                        cpu_pops[i][-1] = list(gpu_res["melhor_solucao"])
+                            if best_cpu_sol and gpu_pop:
+                                gpu_pop[-1] = list(best_cpu_sol)
+
+                        geracao_global = min(quantidade_geracoes, geracao_global + gens_por_epoca)
+
+                    # Consolidação do passo atual
+                    sol_atual_tentativa = solucao_acumulada + genes_passo
+                    st_atual = aplicar_movimentos(st_base, sol_atual_tentativa)
+                    sc_atual, det_atual = calcular_score_estado(
+                        st_atual, qtd_movimentos=len(sol_atual_tentativa), retornar_detalhes=True
+                    )
+
+                    t_decorrido = max(0.001, time.time() - t_inicio_total)
+                    taxa_atual = round(total_avaliados / t_decorrido)
+
+                    prefixo_tag = f"Carga Total Multi-Core ({num_cpu_islands} threads) + GPU" if usar_hibrido else f"Multi-Core CPU ({num_cpu_islands} threads)"
+
+                    if callback_progresso:
+                        sol_str = " ".join(sol_atual_tentativa)
+                        callback_progresso({
+                            "etapa": f"{nome_etapa} - Geração {geracao_global}/{quantidade_geracoes}",
+                            "operacao": f"{desc_op} ({por_ilha_str})",
+                            "tamanho_atual": len(sol_atual_tentativa),
+                            "tamanho_cromossomo": len(sol_atual_tentativa),
+                            "cromossomos_populacao": active_pop_total,
+                            "cromossomos_por_ilha": por_ilha_str,
+                            "cromossomos_elite": max(1, round(active_pop_total * 0.05)),
+                            "cromossomos_avaliados": total_avaliados,
+                            "geracao_atual": geracao_global,
+                            "total_geracoes": quantidade_geracoes,
+                            "individuos_avaliados": total_avaliados,
+                            "melhor_score": det_atual["adesivos_corretos"],
+                            "melhor_solucao": sol_atual_tentativa,
+                            "melhor_solucao_str": sol_str,
+                            "detalhes_fitness": det_atual,
+                            "hardware": info_hw,
+                            "taxa_avaliacoes_seg": taxa_atual,
+                            "mensagem": f"[{prefixo_tag}] Geração {geracao_global}/{quantidade_geracoes}: Score {det_atual['adesivos_corretos']}/54 ({sc_atual:.1f} pts) | {taxa_atual:,} evals/s | {len(sol_atual_tentativa)} movs",
+                        })
+
+                solucao_acumulada.extend(movs_estagio)
 
     sol_final_simplificada = simplificar_movimentos(solucao_acumulada)
     st_final = aplicar_movimentos(st_base, sol_final_simplificada)
@@ -1405,6 +1541,7 @@ def resolver_cubo_por_estagios(
     sol_str = " ".join(sol_final_simplificada)
 
     movs_str_list = [str(m) for m in sol_final_simplificada]
+    modo_nome_final = "GPU" if usar_gpu_somente else ("Híbrido (CPU+GPU)" if usar_hibrido else "CPU Multi-Core")
     res = {
         "sucesso": resolvido,
         "score": det_final["adesivos_corretos"],
@@ -1418,7 +1555,7 @@ def resolver_cubo_por_estagios(
         "embaralhamento": [str(m) for m in embaralhamento],
         "hardware": info_hw,
         "detalhes_fitness": det_final,
-        "mensagem": f"Cubo resolvido com sucesso pelo Algoritmo Genético Multi-Core em {formatar_tempo_hhmmss(t_total)} ({t_total:.2f}s)! ({len(movs_str_list)} movimentos, Score {det_final['adesivos_corretos']}/54)",
+        "mensagem": f"Cubo resolvido com sucesso pelo Algoritmo Genético ({modo_nome_final}) em {formatar_tempo_hhmmss(t_total)} ({t_total:.2f}s)! ({len(movs_str_list)} movimentos, Score {det_final['adesivos_corretos']}/54)",
     }
 
     if callback_progresso:
