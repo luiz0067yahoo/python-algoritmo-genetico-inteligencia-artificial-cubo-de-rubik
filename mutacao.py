@@ -129,6 +129,80 @@ def mutar_individuo(individuo, porcentagem_mutacao):
     return individuo_mutado
 
 
+
+# ==============================================================================
+# COMUTADORES E MACROS CANÔNICOS DE SPEEDCUBING (MÉTODO DE JESSICA FRIDRICH / CFOP)
+# ==============================================================================
+# No método de Jessica Fridrich (CFOP), para alterar peças de camadas superiores
+# ou inserir pares F2L sem destruir a Cruz da base (D) ou blocos já consolidados,
+# utilizam-se COMUTADORES e CONJUGADOS da Teoria de Grupos:
+#
+# 1. Comutadores: [A, B] = A * B * A' * B'
+#    Afetam exclusivamente a intersecção das peças movidas por A e B, mantendo
+#    o restante do cubo 100% invariante (protegendo o progresso genético anterior).
+#
+# 2. Conjugados: A * B * A'
+#    Trazem uma peça para a camada de trabalho (A), aplicam a modificação (B) e
+#    desfazem a preparação (A').
+#
+# Ao injetar estas macros na mutação avançada, o Algoritmo Genético ganha "saltos
+# quânticos" no espaço de busca, evitando desmanchar estágios anteriores de Fridrich.
+# ==============================================================================
+MACROS_SPEEDCUBING = (
+    ("R", "U", "R'", "U'"),                   # Sexy Move: [R, U] - comutador elementar de F2L / OLL
+    ("U", "R", "U'", "R'"),                   # Reverse Sexy: inserção ágil de pares
+    ("R'", "F", "R", "F'"),                   # Sledgehammer: orienta arestas sem afetar slots protegidos
+    ("F", "R", "F'", "R'"),                   # Hedgeslammer: variação frontal do Sledgehammer
+    ("R", "U", "R'", "U", "R", "U2", "R'"),   # Sune: algoritmo canônico de Fridrich para orientação de cantos (OLL)
+    ("R", "U2", "R'", "U'", "R", "U'", "R'"), # Anti-Sune: simétrico inverso do Sune
+    ("L'", "U'", "L", "U"),                   # Lefty Sexy: espelhamento para a mão esquerda
+    ("R", "U'", "R'"),                        # Inserção Direita de Par F2L (preserva a cruz)
+    ("L'", "U", "L"),                         # Inserção Esquerda de Par F2L (preserva a cruz)
+    ("F'", "U'", "F"),                        # Inserção Frontal Direta
+    ("F", "U", "F'"),                         # Inserção Frontal Esquerda
+    ("R2", "U", "R", "U", "R'", "U'", "R'", "U'", "R'", "U", "R'"), # Allan / U-perm (PLL de permutação de 3 arestas)
+)
+
+
+def mutar_individuo_avancado(individuo, porcentagem_mutacao, chance_macro=0.35):
+    """
+    Aplica mutação avançada combinando mutação pontual por gene e
+    macro-mutações com comutadores de speedcubing que preservam a integridade estrutural.
+
+    Parâmetros:
+        individuo (list[str]): Sequência de movimentos do indivíduo.
+        porcentagem_mutacao (float): Probabilidade de mutação pontual.
+        chance_macro (float): Probabilidade de aplicar uma substituição por comutador.
+
+    Retorno:
+        list[str]: Novo cromossomo mutado.
+    """
+    if not individuo:
+        return []
+
+    n = len(individuo)
+    if random.random() < chance_macro and n >= 4:
+        from populacao import simplificar_movimentos
+        macro = list(random.choice(MACROS_SPEEDCUBING))
+        idx = random.randint(0, max(0, n - len(macro)))
+        cand = individuo[:idx] + macro + individuo[idx + len(macro):]
+        cand = simplificar_movimentos(cand)
+        if len(cand) == n:
+            return cand
+        elif len(cand) > n:
+            return cand[:n]
+        else:
+            # Completa até o tamanho original com genes válidos se necessário
+            from populacao import VALID_NEXT_MOVES
+            while len(cand) < n:
+                f_ant = cand[-1][0] if cand else None
+                f_ret = cand[-2][0] if len(cand) >= 2 else None
+                cand.append(random.choice(VALID_NEXT_MOVES[(f_ant, f_ret)]))
+            return cand
+
+    return mutar_individuo(individuo, porcentagem_mutacao)
+
+
 def mutacao(populacao, porcentagem_mutacao):
     """
     Aplica o operador de mutação a todos os indivíduos de uma população.
@@ -140,4 +214,5 @@ def mutacao(populacao, porcentagem_mutacao):
     Retorno:
         list[list[str]]: Nova população com as mutações aplicadas.
     """
-    return [mutar_individuo(ind, porcentagem_mutacao) for ind in populacao]
+    return [mutar_individuo_avancado(ind, porcentagem_mutacao) for ind in populacao]
+

@@ -241,3 +241,80 @@ def gerar_embaralhamento_wca(tamanho=25):
         list[str]: Lista com os movimentos do embaralhamento oficial WCA.
     """
     return gerar_individuo(tamanho)
+
+
+def simplificar_movimentos(sequencia_movimentos):
+    """
+    Simplifica e compacta uma sequência de movimentos aplicando cancelamentos algébricos
+    e redução de giros comutativos de faces paralelas opostas (ex: U D U' -> D).
+
+    Parâmetros:
+        sequencia_movimentos (list[str] | str): Lista ou string de movimentos WCA.
+
+    Retorno:
+        list[str]: Lista simplificada sem redundâncias ou movimentos nulos.
+    """
+    if isinstance(sequencia_movimentos, str):
+        movimentos = [m for m in sequencia_movimentos.split() if m.strip()]
+    else:
+        movimentos = [str(m).strip() for m in sequencia_movimentos if str(m).strip()]
+
+    if not movimentos:
+        return []
+
+    def parse_m(m):
+        m = m.strip()
+        f = m[0].upper()
+        if len(m) > 1 and m[1] == '2':
+            t = 2
+        elif len(m) > 1 and m[1] in ("'", "i"):
+            t = 3
+        else:
+            t = 1
+        return f, t
+
+    def format_m(f, t):
+        t = t % 4
+        if t == 0:
+            return None
+        elif t == 1:
+            return f
+        elif t == 2:
+            return f + "2"
+        elif t == 3:
+            return f + "'"
+
+    current = [parse_m(m) for m in movimentos]
+    changed = True
+
+    while changed:
+        changed = False
+        i = 0
+        while i < len(current):
+            f1, t1 = current[i]
+            merged = False
+            j = i + 1
+            while j < len(current):
+                f2, t2 = current[j]
+                if f1 == f2:
+                    # Mesma face: soma os giros módulo 4
+                    t_new = (t1 + t2) % 4
+                    current.pop(j)
+                    if t_new == 0:
+                        current.pop(i)
+                    else:
+                        current[i] = (f1, t_new)
+                    changed = True
+                    merged = True
+                    break
+                elif PARALELAS.get(f1) == f2:
+                    # Faces paralelas opostas comutam (ex: U e D), permite lookahead
+                    j += 1
+                else:
+                    # Outras faces não comutam, interrompe a busca por fusão
+                    break
+            if not merged:
+                i += 1
+
+    resultado = [format_m(f, t) for f, t in current]
+    return [m for m in resultado if m is not None]

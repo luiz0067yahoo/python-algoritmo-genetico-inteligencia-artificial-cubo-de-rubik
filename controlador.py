@@ -34,6 +34,18 @@ SESSOES_PROGRESSO = {}
 LOCK_SESSAO = threading.Lock()
 
 
+def formatar_tempo_hhmmss(segundos):
+    """
+    Formata um valor de tempo em segundos para o formato canônico HH:MM:SS.
+    Exemplo: 75 -> "00:01:15", 3665 -> "01:01:05".
+    """
+    seg = max(0, int(segundos or 0))
+    horas = seg // 3600
+    minutos = (seg % 3600) // 60
+    segs = seg % 60
+    return f"{horas:02d}:{minutos:02d}:{segs:02d}"
+
+
 def atualizar_sessao(session_id, dados):
     """
     Atualiza o estado de progresso de uma sessão ativa de forma thread-safe.
@@ -78,7 +90,9 @@ def worker_solucao(session_id, payload):
             return sess.get('cancelado', False) if sess else True
 
     try:
-        # Executa o resolvedor incremental de alta performance
+        # Executa a resolução evolutiva hierárquica baseada no Método de Jessica Fridrich (CFOP):
+        # 1. Cruz (Cross na base D) -> 2. F2L (2 primeiras camadas) -> 3. OLL (orientação topo) -> 4. PLL (permutação final)
+        # O callback despacha atualizações periódicas a cada 1.0 segundo com a Decomposição do Score completa.
         resultado = resolver_cubo_incremental(
             embaralhamento=payload.get('embaralhamento', []),
             porcentagem_mutacao=payload.get('porcentagem_mutacao', 0.05),
@@ -88,13 +102,19 @@ def worker_solucao(session_id, payload):
             quantidade_individuos_inicial=payload.get('quantidade_individuos_inicial', 1000),
             tamanho_minimo=payload.get('tamanho_minimo', 1),
             tamanho_maximo=payload.get('tamanho_maximo', 54),
-            intervalo_ciclo=payload.get('intervalo_ciclo', 500),
+            intervalo_ciclo=payload.get('intervalo_ciclo', 100),
             modo_hardware=payload.get('modo_hardware', 'cpu+gpu'),
             callback_progresso=callback,
             is_cancelled=is_cancelled,
         )
 
         # Atualiza a sessão com os resultados finais
+        if resultado and isinstance(resultado, dict):
+            if 'embaralhamento' in resultado and isinstance(resultado['embaralhamento'], list):
+                resultado['embaralhamento'] = [str(m) for m in resultado['embaralhamento']]
+            if 'solucao' in resultado and isinstance(resultado['solucao'], list):
+                resultado['solucao'] = [str(m) for m in resultado['solucao']]
+
         with LOCK_SESSAO:
             if session_id in SESSOES_PROGRESSO:
                 if SESSOES_PROGRESSO[session_id].get('cancelado'):
@@ -106,6 +126,8 @@ def worker_solucao(session_id, payload):
                     SESSOES_PROGRESSO[session_id]['melhor_score'] = resultado.get('score', 0)
                     SESSOES_PROGRESSO[session_id]['melhor_solucao'] = resultado.get('solucao', [])
                     SESSOES_PROGRESSO[session_id]['melhor_solucao_str'] = resultado.get('solucao_str', '')
+                    if resultado and 'detalhes_fitness' in resultado:
+                        SESSOES_PROGRESSO[session_id]['detalhes_fitness'] = resultado['detalhes_fitness']
                     SESSOES_PROGRESSO[session_id]['mensagem'] = resultado.get('mensagem', 'Processamento finalizado.')
 
     except Exception as e:
@@ -163,6 +185,10 @@ def iniciar_solucao():
 
     info_hardware = obter_informacoes_hardware()
 
+    from pontuacao import ESTADO_RESOLVIDO, aplicar_movimentos, calcular_score_estado
+    st_init = aplicar_movimentos(ESTADO_RESOLVIDO, embaralhamento)
+    _, det_init = calcular_score_estado(st_init, qtd_movimentos=0, retornar_detalhes=True)
+
     # Inicializa o snapshot de progresso da sessão
     with LOCK_SESSAO:
         SESSOES_PROGRESSO[session_id] = {
@@ -177,11 +203,12 @@ def iniciar_solucao():
             'geracao_atual': 0,
             'total_geracoes': payload['quantidade_geracoes'],
             'individuos_avaliados': 0,
-            'melhor_score': 0,
+            'melhor_score': det_init.get('adesivos_corretos', 0),
+            'detalhes_fitness': det_init,
             'melhor_solucao': [],
             'melhor_solucao_str': '',
             'hardware': info_hardware,
-            'mensagens': [f"[{time.strftime('%H:%M:%S')}] Sessão iniciada: {info_hardware['cpu_nome']} (16 threads) + GPU: {info_hardware.get('gpu_nome', 'AMD Radeon 780M')}"],
+            'mensagens': [f"[{time.strftime('%H:%M:%S')}] Sessão iniciada: {info_hardware['cpu_nome']} (16 threads) + GPU: {info_hardware.get('gpu_nome', 'AMD Radeon 780M')} | Score Inicial: {det_init.get('adesivos_corretos', 0)}/54 ({det_init.get('score_total', 0):.1f} pts)"],
             'resultado_final': None,
             'cancelado': False,
             'timestamp_inicio': time.time(),
@@ -237,7 +264,9 @@ def obter_status(session_id=None):
 
         # Retorna cópia com cálculo do tempo decorrido
         snapshot = dict(estado)
-        snapshot['tempo_decorrido'] = round(time.time() - snapshot.get('timestamp_inicio', time.time()), 2)
+        t_decorrido = round(time.time() - snapshot.get('timestamp_inicio', time.time()), 2)
+        snapshot['tempo_decorrido'] = t_decorrido
+        snapshot['tempo_decorrido_formatado'] = formatar_tempo_hhmmss(t_decorrido)
         return jsonify(snapshot), 200
 
 
@@ -286,5 +315,5 @@ def rodar_ag_legado():
 
 
 if __name__ == '__main__':
-    # Inicializa o servidor web local na porta 5000
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Inicializa o servidor web local na porta 5000 com thread safety e estabilidade no Windows
+    app.run(debug=False, use_reloader=False, threaded=True, host='0.0.0.0', port=5000)

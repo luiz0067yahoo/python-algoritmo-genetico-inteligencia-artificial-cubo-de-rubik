@@ -1347,7 +1347,8 @@
           <span class="card-title" style="color: var(--accent-emerald);">
             <span class="spinner"></span> Monitoramento da Sessão (Ao Vivo)
           </span>
-          <span id="live-timer" style="font-family: var(--font-mono); font-size: 0.8rem; color: #38bdf8;">0.00s</span>
+          <span id="live-timer"
+            style="font-family: var(--font-mono); font-size: 0.82rem; color: #38bdf8; font-weight: 600;">00:00:00</span>
         </div>
 
         <div class="progress-bar-container">
@@ -1413,6 +1414,62 @@
           </div>
         </div>
 
+        <!-- DECOMPOSIÇÃO DO SCORE (6 COMPONENTES) -->
+        <div
+          style="margin-top: 0.55rem; margin-bottom: 0.35rem; display: flex; align-items: center; justify-content: space-between;">
+          <span
+            style="font-size: 0.74rem; font-weight: 700; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.04em;">
+            🎯 Decomposição do Score
+          </span>
+          <span id="live-fitness-total-badge"
+            style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.72rem; padding: 0.12rem 0.45rem; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.35); font-family: var(--font-mono); font-weight: 600;">Score:
+            0.0 pts</span>
+        </div>
+
+        <div class="metrics-grid-live"
+          style="grid-template-columns: repeat(3, 1fr); gap: 0.38rem; margin-bottom: 0.45rem;">
+          <div class="metric-tile"
+            style="background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.25);">
+            <span class="metric-tile-title">📍 Posição Cantos</span>
+            <span id="live-fit-pos-cantos" class="metric-tile-val" style="color: #818cf8; font-size: 0.88rem;">0 /
+              8</span>
+          </div>
+
+          <div class="metric-tile"
+            style="background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25);">
+            <span class="metric-tile-title">🔄 Orientação Cantos</span>
+            <span id="live-fit-ori-cantos" class="metric-tile-val" style="color: #c084fc; font-size: 0.88rem;">0 /
+              8</span>
+          </div>
+
+          <div class="metric-tile"
+            style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);">
+            <span class="metric-tile-title">📍 Posição Arestas</span>
+            <span id="live-fit-pos-arestas" class="metric-tile-val" style="color: #38bdf8; font-size: 0.88rem;">0 /
+              12</span>
+          </div>
+
+          <div class="metric-tile"
+            style="background: rgba(236, 72, 153, 0.08); border-color: rgba(236, 72, 153, 0.25);">
+            <span class="metric-tile-title">🔄 Orientação Arestas</span>
+            <span id="live-fit-ori-arestas" class="metric-tile-val" style="color: #f472b6; font-size: 0.88rem;">0 /
+              12</span>
+          </div>
+
+          <div class="metric-tile"
+            style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+            <span class="metric-tile-title">🧩 Pares F2L + Cruz</span>
+            <span id="live-fit-pares" class="metric-tile-val" style="color: #34d399; font-size: 0.88rem;">0 / 4
+              F2L</span>
+          </div>
+
+          <div class="metric-tile" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+            <span class="metric-tile-title">⚖️ Penalidade Tamanho</span>
+            <span id="live-fit-penalidade" class="metric-tile-val" style="color: #f87171; font-size: 0.88rem;">-0.0
+              pts</span>
+          </div>
+        </div>
+
         <div class="metric-tile" style="margin-top: 0.2rem;">
           <span class="metric-tile-title">Melhor Sequência Encontrada</span>
           <span id="live-melhor-solucao" class="metric-tile-val" style="color: #38bdf8; font-size: 0.88rem;">--</span>
@@ -1453,21 +1510,22 @@
               <div class="form-label">
                 <span>porcentagem_mutacao</span>
               </div>
-              <input type="number" id="input-mutacao" class="form-input" step="0.01" min="0" max="1" value="0.05">
+              <input type="number" id="input-mutacao" class="form-input" step="0.01" min="0.01" max="0.50" value="0.05">
             </div>
 
             <div class="form-group">
               <div class="form-label">
                 <span>porcentagem_cruzamento</span>
               </div>
-              <input type="number" id="input-cruzamento" class="form-input" step="0.01" min="0" max="1" value="0.50">
+              <input type="number" id="input-cruzamento" class="form-input" step="0.01" min="0.10" max="1.00"
+                value="0.30">
             </div>
 
             <div class="form-group">
               <div class="form-label">
                 <span>porcentagem_selecao</span>
               </div>
-              <input type="number" id="input-selecao" class="form-input" step="0.01" min="0.05" max="1" value="0.50">
+              <input type="number" id="input-selecao" class="form-input" step="0.01" min="0.05" max="0.90" value="0.50">
             </div>
           </div>
 
@@ -1476,21 +1534,21 @@
               <div class="form-label">
                 <span>quantidade_geracoes</span>
               </div>
-              <input type="number" id="input-geracoes" class="form-input" step="100" min="10" max="20000" value="2000">
+              <input type="number" id="input-geracoes" class="form-input" step="100" min="50" max="50000" value="20000">
             </div>
 
             <div class="form-group">
               <div class="form-label">
                 <span>quantidade_individuos_inicial</span>
               </div>
-              <input type="number" id="input-populacao" class="form-input" step="100" min="10" max="5000" value="1000">
+              <input type="number" id="input-populacao" class="form-input" step="50" min="50" max="20000" value="10000">
             </div>
 
             <div class="form-group">
               <div class="form-label">
                 <span>intervalo_ciclo</span>
               </div>
-              <input type="number" id="input-ciclo" class="form-input" step="50" min="10" max="2000" value="500">
+              <input type="number" id="input-ciclo" class="form-input" step="25" min="10" max="1000" value="100">
             </div>
           </div>
 
@@ -1506,7 +1564,7 @@
               <div class="form-label">
                 <span>tamanho_maximo</span>
               </div>
-              <input type="number" id="input-tam-max" class="form-input" min="1" max="54" value="54">
+              <input type="number" id="input-tam-max" class="form-input" min="1" max="100" value="70">
             </div>
           </div>
 
@@ -1516,9 +1574,9 @@
               <small>CPU / GPU / Híbrido</small>
             </div>
             <select id="select-hardware-mode" class="form-select">
-              <option value="cpu+gpu" selected>cpu+gpu (Simultâneo: 16 Threads CPU + Super-Ilha GPU)</option>
-              <option value="gpu">gpu (Aceleração Pura em GPU: AMD Radeon 780M / Vulkan)</option>
-              <option value="cpu">cpu (Multi-Core Puro: 16 Threads AMD Ryzen 7 PRO 8700GE)</option>
+              <option value="cpu" selected>cpu</option>
+              <option value="cpu+gpu">cpu+gpu</option>
+              <option value="gpu">gpu</option>
             </select>
           </div>
 
@@ -1532,12 +1590,57 @@
         <div id="ag-result-box" class="ag-result-box" style="margin-top: 0.85rem;">
           <div class="result-status">
             <span id="ag-result-title" style="color: var(--accent-emerald);">Solução Encontrada!</span>
-            <span id="ag-result-time">0.00s</span>
+            <span id="ag-result-time" style="font-family: var(--font-mono); font-weight: 600;">00:00:00</span>
           </div>
           <div id="ag-result-moves" class="result-moves">--</div>
           <div class="result-stats-row">
             <span id="ag-result-score">Score: 54/54</span>
             <span id="ag-result-chrom">Cromossomo: 0 movs</span>
+          </div>
+
+          <!-- Breakdown dos 6 Componentes no Resultado Final -->
+          <div id="ag-result-breakdown-title"
+            style="font-size: 0.72rem; font-weight: 700; color: #a5b4fc; text-transform: uppercase; margin-top: 0.45rem; margin-bottom: 0.2rem; display: none;">
+            🎯 Decomposição do Score
+          </div>
+          <div id="ag-result-fitness-breakdown" class="metrics-grid-live"
+            style="grid-template-columns: repeat(3, 1fr); gap: 0.35rem; margin-top: 0.2rem; margin-bottom: 0.45rem; display: none;">
+            <div class="metric-tile"
+              style="padding: 0.35rem 0.5rem; background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.25);">
+              <span class="metric-tile-title" style="font-size: 0.68rem;">📍 Posição Cantos</span>
+              <span id="res-fit-pos-cantos" class="metric-tile-val" style="font-size: 0.84rem; color: #818cf8;">8 /
+                8</span>
+            </div>
+            <div class="metric-tile"
+              style="padding: 0.35rem 0.5rem; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25);">
+              <span class="metric-tile-title" style="font-size: 0.68rem;">🔄 Orientação Cantos</span>
+              <span id="res-fit-ori-cantos" class="metric-tile-val" style="font-size: 0.84rem; color: #c084fc;">8 /
+                8</span>
+            </div>
+            <div class="metric-tile"
+              style="padding: 0.35rem 0.5rem; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);">
+              <span class="metric-tile-title" style="font-size: 0.68rem;">📍 Posição Arestas</span>
+              <span id="res-fit-pos-arestas" class="metric-tile-val" style="font-size: 0.84rem; color: #38bdf8;">12 /
+                12</span>
+            </div>
+            <div class="metric-tile"
+              style="padding: 0.35rem 0.5rem; background: rgba(236, 72, 153, 0.08); border-color: rgba(236, 72, 153, 0.25);">
+              <span class="metric-tile-title" style="font-size: 0.68rem;">🔄 Orientação Arestas</span>
+              <span id="res-fit-ori-arestas" class="metric-tile-val" style="font-size: 0.84rem; color: #f472b6;">12 /
+                12</span>
+            </div>
+            <div class="metric-tile"
+              style="padding: 0.35rem 0.5rem; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+              <span class="metric-tile-title" style="font-size: 0.68rem;">🧩 Pares F2L + Cruz</span>
+              <span id="res-fit-pares" class="metric-tile-val" style="font-size: 0.84rem; color: #34d399;">4/4 F2L +
+                Cruz</span>
+            </div>
+            <div class="metric-tile"
+              style="padding: 0.35rem 0.5rem; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+              <span class="metric-tile-title" style="font-size: 0.68rem;">⚖️ Penalidade Tamanho</span>
+              <span id="res-fit-penalidade" class="metric-tile-val" style="font-size: 0.84rem; color: #f87171;">-0.0
+                pts</span>
+            </div>
           </div>
           <div style="display: flex; gap: 0.45rem; margin-top: 0.4rem;">
             <button type="button" id="btn-replay-solution" class="btn btn-primary"
@@ -2304,15 +2407,26 @@
       inputGeracoes.value = "2000";
       inputPopulacao.value = "1000";
       inputTamMin.value = "1";
-      inputTamMax.value = "54";
-      inputCiclo.value = "500";
+      inputTamMax.value = "26";
+      inputCiclo.value = "100";
       if (selectHardwareMode) selectHardwareMode.value = "cpu+gpu";
-      showToast("Valores restaurados para o padrão!");
+      showToast("Valores restaurados para o padrão otimizado!");
     });
 
     // =========================================================================
     // 7. MONITORAMENTO EM TEMPO REAL VIA SESSÃO (POLLING AJAX DE 1 EM 1 SEGUNDO /status)
     // =========================================================================
+    function formatarTempoHHMMSS(segundosTotais) {
+      if (segundosTotais === undefined || segundosTotais === null || isNaN(segundosTotais)) {
+        return '00:00:00';
+      }
+      const segInt = Math.floor(Math.max(0, Number(segundosTotais)));
+      const horas = Math.floor(segInt / 3600);
+      const minutos = Math.floor((segInt % 3600) / 60);
+      const segundos = segInt % 60;
+      return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
+    }
+
     async function startSessionPolling(sessionId, maxGens, tamMin, tamMax) {
       if (pollingIntervalId) clearInterval(pollingIntervalId);
       lastRenderedLogCount = 0;
@@ -2340,12 +2454,53 @@
       pollingIntervalId = setInterval(consultarStatus, 1000);
     }
 
+    function formatarDecomposicaoScore(df) {
+      if (!df) return null;
+      const dec = df.decomposicao_score;
+      if (dec) {
+        return {
+          posCantos: dec.posicao_cantos ? dec.posicao_cantos.texto : `${df.posicao_cantos || 0}/8`,
+          oriCantos: dec.orientacao_cantos ? dec.orientacao_cantos.texto : `${df.orientacao_cantos || 0}/8`,
+          posArestas: dec.posicao_arestas ? dec.posicao_arestas.texto : `${df.posicao_arestas || 0}/12`,
+          oriArestas: dec.orientacao_arestas ? dec.orientacao_arestas.texto : `${df.orientacao_arestas || 0}/12`,
+          pares: dec.pares_corretos ? dec.pares_corretos.texto : `${df.pares_f2l || 0}/4 F2L`,
+          penalidade: dec.penalidade_tamanho ? dec.penalidade_tamanho.texto : `-${Number(df.penalidade_tamanho || 0).toFixed(1)} pts`,
+          score: df.score !== undefined ? df.score : 0
+        };
+      }
+      const ptsPosC = df.pts_posicao_cantos !== undefined ? df.pts_posicao_cantos : (df.posicao_cantos || 0) * 25;
+      const ptsOriC = df.pts_orientacao_cantos !== undefined ? df.pts_orientacao_cantos : (df.orientacao_cantos || 0) * 25;
+      const ptsPosA = df.pts_posicao_arestas !== undefined ? df.pts_posicao_arestas : (df.posicao_arestas || 0) * 20;
+      const ptsOriA = df.pts_orientacao_arestas !== undefined ? df.pts_orientacao_arestas : (df.orientacao_arestas || 0) * 20;
+      const ptsPares = df.pts_pares_corretos !== undefined ? df.pts_pares_corretos : ((df.pares_f2l || 0) * 50 + (df.cruz_arestas || 0) * 20);
+      const pen = Number(df.penalidade_tamanho || 0);
+      const f2l = df.pares_f2l !== undefined ? df.pares_f2l : 0;
+      const cruz = df.cruz_arestas !== undefined ? df.cruz_arestas : 0;
+      const cruzText = cruz === 4 ? "Cruz ✓" : `Cruz ${cruz}/4`;
+
+      return {
+        posCantos: `${df.posicao_cantos || 0}/8 (+${ptsPosC.toFixed(0)} pts)`,
+        oriCantos: `${df.orientacao_cantos || 0}/8 (+${ptsOriC.toFixed(0)} pts)`,
+        posArestas: `${df.posicao_arestas || 0}/12 (+${ptsPosA.toFixed(0)} pts)`,
+        oriArestas: `${df.orientacao_arestas || 0}/12 (+${ptsOriA.toFixed(0)} pts)`,
+        pares: `${f2l}/4 F2L + ${cruzText} (+${ptsPares.toFixed(0)} pts)`,
+        penalidade: `-${pen.toFixed(1)} pts`,
+        score: df.score !== undefined ? df.score : 0
+      };
+    }
+
     function renderSessionProgress(data, maxGens, tamMin, tamMax) {
-      liveTimer.textContent = `${data.tempo_decorrido || 0}s`;
+      liveTimer.textContent = data.tempo_decorrido_formatado || formatarTempoHHMMSS(data.tempo_decorrido);
       liveEtapa.textContent = data.etapa || 'Processando...';
       liveGeracao.textContent = `${data.geracao_atual || 0} / ${data.total_geracoes || maxGens}`;
       liveAvaliados.textContent = Number(data.individuos_avaliados || data.cromossomos_avaliados || 0).toLocaleString('pt-BR');
-      liveScore.textContent = `${data.melhor_score || 0} / 54`;
+
+      const df = data.detalhes_fitness || (data.resultado_final && data.resultado_final.detalhes_fitness);
+      if (df && df.score !== undefined) {
+        liveScore.textContent = `${Number(df.score).toFixed(1)} pts (${df.adesivos_corretos !== undefined ? df.adesivos_corretos : (data.melhor_score || 0)}/54)`;
+      } else {
+        liveScore.textContent = `${data.melhor_score || 0} / 54`;
+      }
 
       // Atualização das métricas detalhadas de cromossomos
       const popChrom = data.cromossomos_populacao || (inputPopulacao ? parseInt(inputPopulacao.value, 10) : 1000);
@@ -2414,6 +2569,27 @@
       } else if (data.total_geracoes > 0) {
         pct = Math.min(95, Math.round((data.geracao_atual / data.total_geracoes) * 100));
       }
+
+      // Atualização em Tempo Real dos 6 Componentes da Decomposição do Score
+      const fmtDec = formatarDecomposicaoScore(df);
+      if (fmtDec) {
+        const elPosCantos = document.getElementById('live-fit-pos-cantos');
+        const elOriCantos = document.getElementById('live-fit-ori-cantos');
+        const elPosArestas = document.getElementById('live-fit-pos-arestas');
+        const elOriArestas = document.getElementById('live-fit-ori-arestas');
+        const elPares = document.getElementById('live-fit-pares');
+        const elPenalidade = document.getElementById('live-fit-penalidade');
+        const elBadge = document.getElementById('live-fitness-total-badge');
+
+        if (elPosCantos) elPosCantos.textContent = fmtDec.posCantos;
+        if (elOriCantos) elOriCantos.textContent = fmtDec.oriCantos;
+        if (elPosArestas) elPosArestas.textContent = fmtDec.posArestas;
+        if (elOriArestas) elOriArestas.textContent = fmtDec.oriArestas;
+        if (elPares) elPares.textContent = fmtDec.pares;
+        if (elPenalidade) elPenalidade.textContent = fmtDec.penalidade;
+        if (elBadge) elBadge.textContent = `Score: ${Number(fmtDec.score).toFixed(1)} pts`;
+      }
+
       liveProgressBar.style.width = `${pct}%`;
 
       if (data.mensagens && data.mensagens.length > lastRenderedLogCount) {
@@ -2504,17 +2680,22 @@
       if (data.status === 'concluido' && data.resultado_final && data.resultado_final.sucesso) {
         lastSolvedData = data;
 
+        const tempoFormatado = data.resultado_final.tempo_execucao_formatado || data.tempo_decorrido_formatado || formatarTempoHHMMSS(data.tempo_decorrido);
+
         agResultBox.style.display = 'flex';
         agResultTitle.textContent = "Solução Ótima Encontrada!";
         agResultTitle.style.color = 'var(--accent-emerald)';
-        agResultTime.textContent = `${data.tempo_decorrido || 0}s`;
-        agResultScore.textContent = `Score: ${data.resultado_final.score}/54 (100%)`;
+        agResultTime.textContent = tempoFormatado;
+        const dfFinal = (data.resultado_final && data.resultado_final.detalhes_fitness) || data.detalhes_fitness;
+        agResultScore.textContent = (dfFinal && dfFinal.score !== undefined)
+          ? `Score: ${Number(dfFinal.score).toFixed(1)} pts (54/54)`
+          : `Score: ${data.resultado_final.score}/54 (100%)`;
         agResultChrom.textContent = `Cromossomo: ${data.resultado_final.tamanho_cromossomo} movimento(s)`;
 
         const solutionStr = data.resultado_final.solucao_str || (data.resultado_final.solucao ? data.resultado_final.solucao.join(' ') : "");
         agResultMoves.textContent = solutionStr || "(Nenhum movimento necessário)";
 
-        showToast(`Solução encontrada em ${data.tempo_decorrido}s! Executando resolução no Cubo 3D...`);
+        showToast(`Solução encontrada em ${tempoFormatado}! Executando resolução no Cubo 3D...`);
 
         // Executa a solução no Cubo 3D para deixá-lo 100% resolvido visualmente
         if (data.resultado_final.solucao && data.resultado_final.solucao.length > 0) {
@@ -2523,20 +2704,70 @@
         } else {
           updateSolvedScore();
         }
+
+        const resBoxBreakdown = document.getElementById('ag-result-fitness-breakdown');
+        const resBoxTitle = document.getElementById('ag-result-breakdown-title');
+        const fmtFinal = formatarDecomposicaoScore(dfFinal);
+        if (fmtFinal && resBoxBreakdown) {
+          if (resBoxTitle) resBoxTitle.style.display = 'block';
+          resBoxBreakdown.style.display = 'grid';
+          const el1 = document.getElementById('res-fit-pos-cantos');
+          const el2 = document.getElementById('res-fit-ori-cantos');
+          const el3 = document.getElementById('res-fit-pos-arestas');
+          const el4 = document.getElementById('res-fit-ori-arestas');
+          const el5 = document.getElementById('res-fit-pares');
+          const el6 = document.getElementById('res-fit-penalidade');
+
+          if (el1) el1.textContent = fmtFinal.posCantos;
+          if (el2) el2.textContent = fmtFinal.oriCantos;
+          if (el3) el3.textContent = fmtFinal.posArestas;
+          if (el4) el4.textContent = fmtFinal.oriArestas;
+          if (el5) el5.textContent = fmtFinal.pares;
+          if (el6) el6.textContent = fmtFinal.penalidade;
+        }
       } else if (data.status === 'cancelado') {
         statusBadge.className = 'status-badge scrambled';
         statusText.textContent = 'Execução Cancelada';
         showToast("Execução interrompida pelo usuário.");
       } else {
+        const tempoFormatado = data.tempo_decorrido_formatado || formatarTempoHHMMSS(data.tempo_decorrido);
         statusBadge.className = 'status-badge scrambled';
         statusText.textContent = 'Limite Atingido';
         agResultBox.style.display = 'flex';
         agResultTitle.textContent = "Melhor Solução Parcial";
         agResultTitle.style.color = 'var(--accent-amber)';
-        agResultTime.textContent = `${data.tempo_decorrido || 0}s`;
-        agResultScore.textContent = `Score Atingido: ${data.melhor_score || 0}/54`;
+        agResultTime.textContent = tempoFormatado;
+
+        const dfFinal = (data.resultado_final && data.resultado_final.detalhes_fitness) || data.detalhes_fitness;
+        if (dfFinal && dfFinal.score !== undefined) {
+          agResultScore.textContent = `Score: ${Number(dfFinal.score).toFixed(1)} pts (${dfFinal.adesivos_corretos !== undefined ? dfFinal.adesivos_corretos : (data.melhor_score || 0)}/54)`;
+        } else {
+          agResultScore.textContent = `Score Atingido: ${data.melhor_score || 0}/54`;
+        }
         agResultChrom.textContent = `Tamanho: ${data.tamanho_atual || 0} movs`;
         agResultMoves.textContent = data.melhor_solucao_str || "Limite de gerações atingido sem resolver 100%.";
+
+        const resBoxBreakdown = document.getElementById('ag-result-fitness-breakdown');
+        const resBoxTitle = document.getElementById('ag-result-breakdown-title');
+        const fmtFinal = formatarDecomposicaoScore(dfFinal);
+        if (fmtFinal && resBoxBreakdown) {
+          if (resBoxTitle) resBoxTitle.style.display = 'block';
+          resBoxBreakdown.style.display = 'grid';
+          const el1 = document.getElementById('res-fit-pos-cantos');
+          const el2 = document.getElementById('res-fit-ori-cantos');
+          const el3 = document.getElementById('res-fit-pos-arestas');
+          const el4 = document.getElementById('res-fit-ori-arestas');
+          const el5 = document.getElementById('res-fit-pares');
+          const el6 = document.getElementById('res-fit-penalidade');
+
+          if (el1) el1.textContent = fmtFinal.posCantos;
+          if (el2) el2.textContent = fmtFinal.oriCantos;
+          if (el3) el3.textContent = fmtFinal.posArestas;
+          if (el4) el4.textContent = fmtFinal.oriArestas;
+          if (el5) el5.textContent = fmtFinal.pares;
+          if (el6) el6.textContent = fmtFinal.penalidade;
+        }
+
         showToast("Algoritmo finalizado sem atingir 100%.");
       }
 
