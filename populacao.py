@@ -1,14 +1,30 @@
 # ==============================================================================
 # POPULACAO.PY - GERAÇÃO DE INDIVÍDUOS, POPULAÇÕES E TRANSIÇÕES VÁLIDAS (WCA)
 # ==============================================================================
-# Este módulo gerencia a criação de cromossomos (sequências de movimentos)
-# para o Algoritmo Genético, garantindo que não existam redundâncias ou
-# cancelamentos algébricos óbvios no cubo mágico.
+# Este módulo gerencia o espaço genotípico do Algoritmo Genético para o Cubo de Rubik.
+# Cada indivíduo (cromossomo) é representado por uma lista de movimentos canônicos
+# pertencentes ao grupo de permutações do cubo 3x3x3: G = <U, D, F, B, R, L>.
 #
-# Regras de Não Redundância:
-# - Regra 1: Duas rotações consecutivas na mesma face são inválidas (ex: U U ou U U').
-# - Regra 2: Três rotações onde a 1ª e a 3ª pertencem à mesma face e a 2ª pertence
-#            à face paralela oposta são inválidas (ex: U D U ou R L R').
+# Fundamentação Algébrica e Eliminação de Redundâncias:
+# No cubo mágico, movimentos ingênuos geram sequências com redundâncias físicas que
+# poluem a busca evolutiva e multiplicam artificialmente o espaço de busca.
+# Para manter a exploração em caminhos canônicos mínimos, este módulo impõe:
+#
+# 1. Regra 1 (Não Redundância Imediata):
+#    - Duas rotações consecutivas na mesma face são proibidas (ex: U U, U U', R R2).
+#    - Justificativa: Rotações na mesma face formam o subgrupo cíclico C4 (mod 4),
+#      portanto qualquer combinação consecutiva colapsa em um único movimento ou identidade.
+#
+# 2. Regra 2 (Comutatividade de Faces Paralelas Opostas):
+#    - Rotações em faces paralelas opostas (U e D, F e B, R e L) comutam entre si (ex: U D = D U).
+#    - Para quebrar a simetria comutativa e proibir oscilações inúteis (ex: U D U ou R L R'),
+#      adota-se uma ordem canônica estrita: a face lexicograficamente anterior sempre
+#      tem precedência, e intercalações como F B F' são terminantemente podadas.
+#
+# Estrutura O(1) de Pré-Computação:
+# - Ao invés de executar validações lógicas com if/else durante cada geração do AG,
+#   o dicionário 'VALID_NEXT_MOVES' pré-computa todas as tuplas permitidas para o par
+#   (face_anterior, face_retrasada). A geração e mutação tornam-se O(1) puro por indexação.
 # ==============================================================================
 
 import random

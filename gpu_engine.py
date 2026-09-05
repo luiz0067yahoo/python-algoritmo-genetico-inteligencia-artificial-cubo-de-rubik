@@ -1,15 +1,28 @@
 # ==============================================================================
 # GPU_ENGINE.PY - MOTOR DE ACELERAÇÃO POR GPU VIA WEBGPU / VULKAN (WGSL)
 # ==============================================================================
-# Este módulo implementa a aceleração do Algoritmo Genético do Cubo de Rubik
-# utilizando a Placa de Vídeo (GPU) do computador (ex: AMD Radeon™ 780M Graphics).
+# Este módulo implementa a aceleração massivamente paralela do Algoritmo Genético
+# utilizando Compute Shaders em WGSL (WebGPU Shading Language) executados nativamente
+# na GPU através da API Vulkan ou Direct3D 12 (ex: AMD Radeon™ 780M Graphics).
 #
-# Principais Características:
-# 1. Compute Shaders em WGSL executados diretamente na GPU via Vulkan / Direct3D 12.
-# 2. Avaliação massiva em paralelo de dezenas de milhares de cromossomos por ciclo.
-# 3. Taxa de processamento de até 3.000.000 de avaliações de fitness por segundo.
-# 4. Reutilização de buffers em VRAM para minimizar overhead de cópia de memória.
-# 5. Fallback automático e transparente para CPU caso a GPU não esteja disponível.
+# Arquitetura de Execução Massiva na GPU:
+# 1. Pipeline de Compute Shaders:
+#    - Cada thread de computação na GPU simula de forma completamente independente
+#      a aplicação dos genes de 1 cromossomo sobre os 54 adesivos do cubo.
+#    - Com workgroups de tamanho 64 (@workgroup_size(64)), a GPU distribui milhares de
+#      threads pelos Compute Units (CUs) em paralelo estrito, alcançando taxas
+#      superiores a 2.900.000 avaliações de fitness por segundo.
+#
+# 2. Gerenciamento de Memória e Zero-Copy VRAM:
+#    - Os dados estáticos do problema (vetor de permutação de 18 movimentos x 54 adesivos = 972 inteiros,
+#      estado resolvido padrão e estado embaralhado) são alocados em VRAM uma única vez.
+#    - Para cada ciclo evolutivo, apenas a matriz de IDs dos cromossomos é transferida
+#      para o storage buffer da GPU, eliminando gargalos de barramento PCIe / SoC.
+#
+# 3. Fallback Transparente:
+#    - Se a GPU não possuir drivers Vulkan compatíveis ou o pacote wgpu não estiver instalado,
+#      o motor desativa-se silenciosamente e redireciona todo o processamento para as
+#      16 ilhas paralelas de CPU com estabilidade total.
 # ==============================================================================
 
 import time

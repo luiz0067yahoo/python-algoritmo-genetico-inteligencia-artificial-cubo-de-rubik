@@ -1,13 +1,21 @@
 # ==============================================================================
-# MUTACAO.PY - OPERADOR GENÉTICO DE MUTAÇÃO E DIVERSIDADE
+# MUTACAO.PY - OPERADOR GENÉTICO DE MUTAÇÃO, DIVERSIDADE E MACROS DE FRIDRICH
 # ==============================================================================
-# Este módulo implementa o operador de mutação pontual do Algoritmo Genético.
-# A mutação é essencial para introduzir nova variabilidade genética na população,
-# evitando que o algoritmo fique preso em ótimos locais (estagnação).
+# Este módulo implementa a variabilidade genética e exploração do espaço de busca
+# através de dois mecanismos complementares de mutação:
 #
-# Para cada gene do cromossomo que sofre mutação, verificamos a compatibilidade
-# tanto com os movimentos anteriores (i-1 e i-2) quanto com os posteriores (i+1 e i+2),
-# garantindo que o cromossomo permaneça 100% válido e sem redundâncias.
+# 1. Mutação Pontual Canônica:
+#    - Percorre cada gene (movimento) com probabilidade 'porcentagem_mutacao'.
+#    - Substitui o gene por outro movimento aleatório retirado da tabela O(1) de transições,
+#      garantindo consistência local com vizinhos anteriores (i-1, i-2) e posteriores (i+1, i+2).
+#    - Evita convergência prematura em mínimos locais e mantém o fitness em constante pressão seletiva.
+#
+# 2. Macro-Mutações com Comutadores de Grupo (Método Jessica Fridrich / CFOP):
+#    - Em problemas de alta dimensionalidade como o Cubo Mágico, mutações estocásticas cegas
+#      frequentemente desmancham estágios anteriores já consolidados (ex: quebrar a cruz ou F2L).
+#    - Para superar esse platô combinatório, injetamos comutadores canônicos [A, B] = A B A' B'
+#      e conjugados A B A' que atuam cirurgicamente sobre subconjuntos de peças (ex: orientar topo
+#      ou permutar arestas) preservando os estágios já resolvidos.
 # ==============================================================================
 
 import random

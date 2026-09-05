@@ -262,7 +262,18 @@ def iniciar_solucao():
 
 @app.route('/info_hardware', methods=['GET'])
 def info_hardware_endpoint():
-    """Retorna as especificações de hardware da máquina atual (processador, núcleos e threads)."""
+    """
+    Endpoint de Telemetria de Hardware (GET /info_hardware).
+    
+    Retorna as especificações de hardware detectadas em tempo de execução:
+    - CPU: Modelo, contagem de núcleos físicos e lógicos (ex: AMD Ryzen 7 PRO 8700GE - 16 threads).
+    - GPU: Nome do adaptador Vulkan/Direct3D 12 (ex: AMD Radeon 780M Graphics) e taxa estimada.
+    - Modo operacional: Híbrido CPU+GPU, GPU dedicada ou CPU multi-processos.
+    
+    Retorno (JSON 200):
+        dict contendo chaves: 'cpu_nome', 'threads_totais', 'threads_utilizadas',
+                              'gpu_nome', 'gpu_disponivel', 'gpu_taxa', 'modo'.
+    """
     return jsonify(obter_informacoes_hardware()), 200
 
 
@@ -272,13 +283,30 @@ def info_hardware_endpoint():
 @app.route('/progresso/<session_id>', methods=['GET'])
 def obter_status(session_id=None):
     """
-    Retorna o snapshot das métricas de progresso da sessão em tempo real:
-    - Geração atual e total de gerações
-    - Total de indivíduos avaliados
-    - Melhor score atingido (0 a 54)
-    - Melhor solução encontrada até o momento
-    - Logs textuais do terminal
-    - Tempo decorrido de execução
+    Endpoint de Polling de Telemetria em Tempo Real (GET /status/<session_id>).
+    
+    Invocado periodicamente pelo frontend (a cada 1000ms) para obter o snapshot
+    atômico do estado de evolução do Algoritmo Genético.
+    
+    Métricas e Dados Fornecidos:
+    - 'status': 'executando', 'concluido', 'cancelado' ou 'erro'.
+    - 'geracao_atual' e 'total_geracoes': Progresso das iterações evolucionárias.
+    - 'individuos_avaliados': Volume cumulativo de cromossomos simulados.
+    - 'melhor_score': Quantidade de adesivos corretos (0 a 54).
+    - 'detalhes_fitness': Decomposição detalhada do Score em 6 pilares:
+        * pos_cantos, ori_cantos, pos_arestas, ori_arestas, pares_f2l_cruz, penalidade.
+    - 'melhor_solucao': Lista de movimentos WCA da melhor sequência encontrada.
+    - 'tempo_decorrido': Segundos corridos desde o início.
+    - 'tempo_decorrido_formatado': Tempo no padrão canônico HH:MM:SS (ex: "00:02:14").
+    - 'mensagens': Últimas 150 linhas de log do terminal em memória.
+    
+    Parâmetros da URL ou Query:
+        session_id (str, opcional): UUID da sessão ativa.
+        
+    Retorno (JSON):
+        200: Snapshot completo do progresso.
+        400: Erro se nenhum session_id for informado.
+        404: Erro se a sessão expirou ou não existe.
     """
     if not session_id:
         session_id = request.args.get('session_id') or session.get('session_id')
@@ -305,7 +333,21 @@ def obter_status(session_id=None):
 
 @app.route('/cancelar_solucao', methods=['POST'])
 def cancelar_solucao():
-    """Cancela a execução da sessão ativa solicitada pelo usuário."""
+    """
+    Endpoint de Cancelamento Assíncrono (POST /cancelar_solucao).
+    
+    Sinaliza à thread de background e aos processos de ilha que a execução
+    deve ser abortada imediatamente. A flag 'cancelado' é lida a cada ciclo
+    pelo callback 'is_cancelled()'.
+    
+    Payload (JSON):
+        {"session_id": "<uuid-da-sessao>"}
+        
+    Retorno (JSON):
+        200: Confirmação de encerramento.
+        400: Erro se session_id não for fornecido.
+        404: Sessão não encontrada.
+    """
     dados = request.get_json(silent=True) or {}
     session_id = dados.get('session_id') or session.get('session_id')
 
@@ -325,8 +367,24 @@ def cancelar_solucao():
 @app.route('/gerar_embaralhamento_wca', methods=['GET', 'POST'])
 def obter_embaralhamento_wca():
     """
-    Gera e retorna uma sequência de embaralhamento oficial no padrão da World Cube Association (WCA).
-    Por padrão retorna 25 movimentos válidos sem redundâncias ou cancelamentos.
+    Endpoint Gerador de Scramble Oficial WCA (GET/POST /gerar_embaralhamento_wca).
+    
+    Gera uma sequência pseudoaleatória conforme o Regulamento Internacional da
+    World Cube Association (WCA Artigo 12 / Regulação 4b):
+    - Comprimento padrão de 25 movimentos canônicos.
+    - Zero redundâncias consecutivas (ex: nunca gera U U').
+    - Zero faces paralelas opostas canceladas (ex: nunca gera U D U).
+    
+    Parâmetros (Query string ou JSON):
+        tamanho (int, opcional): Quantidade de movimentos desejada (padrão: 25, mín: 1, máx: 100).
+        
+    Retorno (JSON 200):
+        {
+            "sucesso": true,
+            "embaralhamento": ["R", "U'", "F2", ...],
+            "embaralhamento_str": "R U' F2 ...",
+            "tamanho": 25
+        }
     """
     from populacao import gerar_embaralhamento_wca
     dados = request.get_json(silent=True) or {}
@@ -343,7 +401,7 @@ def obter_embaralhamento_wca():
 
 @app.route('/rodar_algoritmo_genetico', methods=['POST'])
 def rodar_ag_legado():
-    """Rota legada síncrona mantida para compatibilidade com versões anteriores."""
+    """Rota legada síncrona mantida para compatibilidade retroativa."""
     return iniciar_solucao()
 
 
