@@ -1,15 +1,38 @@
 # ==============================================================================
 # CONTROLADOR.PY - SERVIDOR WEB FLASK, GERENCIAMENTO DE SESSÕES E API REST
 # ==============================================================================
-# Este módulo implementa o servidor web em Flask que atua como ponte entre a
-# interface gráfica 3D (Three.js no navegador) e o Algoritmo Genético em Python.
+# Este módulo implementa a camada controladora e servidora do RubikLab AI.
+# Atua como a ponte de comunicação bidirecional de baixa latência entre a interface
+# gráfica 3D no navegador (Three.js/WebGL) e o motor computacional de Algoritmos
+# Genéticos de Alta Performance (Multi-Core CPU e WebGPU/Vulkan).
 #
-# Principais Responsabilidades:
-# 1. Servir a interface web principal ('/').
-# 2. Iniciar execuções assíncronas do AG em background ('/iniciar_solucao').
-# 3. Fornecer snapshots de métricas e progresso em tempo real ('/status/<session_id>').
-# 4. Permitir cancelamento imediato de sessões ativas ('/cancelar_solucao').
-# 5. Gerar sequências oficiais de embaralhamento WCA ('/gerar_embaralhamento_wca').
+# Arquitetura e Ciclo de Vida do Sistema:
+# 1. Requisição Inicial do Cliente:
+#    - O navegador requisita 'GET /' e recebe o index.html com o renderizador 3D.
+#    - O navegador consulta 'GET /info_hardware' para exibir o banner com as
+#      especificações de CPU (AMD Ryzen 7 PRO 8700GE) e GPU (AMD Radeon 780M Graphics).
+#
+# 2. Despacho Assíncrono de Resolução:
+#    - Ao clicar em "Iniciar Solução", o frontend envia 'POST /iniciar_solucao'.
+#    - O controlador gera um UUID único (`session_id`), instancia o snapshot inicial
+#      e dispara uma daemon thread de background (`worker_solucao`), liberando a
+#      resposta HTTP instantaneamente em < 5ms sem travar a interface.
+#
+# 3. Telemetria e Polling em Tempo Real (1 em 1 segundo):
+#    - A cada 1000ms, o frontend faz 'GET /status/<session_id>' para obter:
+#      * Progresso do Algoritmo Genético (geração atual, indivíduos avaliados, taxa/s).
+#      * Decomposição do Score em 6 Pilares (pos/ori cantos, pos/ori arestas, F2L+Cruz, tamanho).
+#      * Melhor sequência de movimentos encontrada até o momento.
+#      * Tempo decorrido formatado no padrão canônico HH:MM:SS (00:00:00).
+#
+# 4. Encerramento e Animação:
+#    - Quando o AG atinge 54/54 adesivos (ou esgota os ciclos), o status torna-se 'concluido'.
+#    - O frontend recebe o resultado final, ativa o canvas-confetti e executa os giros
+#      passo a passo no Cubo 3D interativo.
+#
+# Concorrência e Thread-Safety:
+# - Mutex Lock (`LOCK_SESSAO`) garante consistência atômica no dicionário global de sessões.
+# - Flag de cancelamento atômica (`cancelado: True`) permite abortar execuções a qualquer instante.
 # ==============================================================================
 
 import threading
@@ -36,8 +59,18 @@ LOCK_SESSAO = threading.Lock()
 
 def formatar_tempo_hhmmss(segundos):
     """
-    Formata um valor de tempo em segundos para o formato canônico HH:MM:SS.
-    Exemplo: 75 -> "00:01:15", 3665 -> "01:01:05".
+    Formata um valor de tempo em segundos para a notação canônica HH:MM:SS.
+    
+    Exemplos:
+        formatar_tempo_hhmmss(75)    -> "00:01:15"
+        formatar_tempo_hhmmss(3665)  -> "01:01:05"
+        formatar_tempo_hhmmss(86400) -> "24:00:00"
+
+    Parâmetros:
+        segundos (float | int): Quantidade de segundos decorridos.
+
+    Retorno:
+        str: String formatada com dois dígitos para horas, minutos e segundos.
     """
     seg = max(0, int(segundos or 0))
     horas = seg // 3600
