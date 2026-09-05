@@ -9,6 +9,10 @@
 
 Um sistema completo de Inteligência Artificial e Computação Evolutiva para resolução e visualização 3D do **Cubo de Rubik (Cubo Mágico 3x3x3)** através de **Algoritmos Genéticos Puros de Ultra-Alta Performance com Aceleração por GPU e Processamento Paralelo Multi-Core**.
 
+<p align="center">
+  <img src="screenshot.png" alt="RubikLab AI - Interface 3D e Dashboard de Hardware" width="100%">
+</p>
+
 ---
 
 ## 📋 Sumário
@@ -200,6 +204,8 @@ Complementada por métricas de proximidade espacial 3D e bônus terminal de cubo
 ├── cruzamento.py     # Operador de recombinação genética e reparo linear O(N)
 ├── mutacao.py        # Operador de mutação com preservação de regras canônicas
 ├── index.html        # Interface gráfica web 3D interativa (Three.js) com dashboard em tempo real
+├── screenshot.png    # Captura de tela da interface principal e telemetria de hardware
+├── screenshot 01.png # Captura de tela dos controles de rotação WCA e sequência de movimentos
 ├── .gitignore        # Ignora arquivos temporários e __pycache__
 └── README.md         # Documentação técnica completa do projeto
 ```
@@ -252,6 +258,22 @@ A interface web desenvolvida com Three.js oferece:
 - **Cubo 3D Interativo**: Controle de rotação livre com OrbitControls e atalhos de teclado (`U, D, F, B, R, L` + `Shift` para anti-horário e `Alt` para giros duplos).
 - **Planificação 2D em Tempo Real**: Visualização plana das 6 faces simultaneamente.
 - **Execução Automática da Solução**: Ao encontrar a solução, o cubo é automaticamente animado e finalizado no estado $54/54$.
+
+### 📸 Capturas de Tela da Aplicação
+
+<p align="center">
+  <img src="screenshot.png" alt="RubikLab 3D — Dashboard Principal, Monitoramento de Hardware e Parâmetros Genéticos" width="100%" />
+  <br>
+  <em>Figura 1: Dashboard Principal — Visualizador 3D do cubo, telemetria em tempo real de CPU (AMD Ryzen™ 7 PRO 8700GE - 16 threads) e GPU (AMD Radeon™ 780M Graphics - 12 CUs), e controle de hiperparâmetros do Algoritmo Genético.</em>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="screenshot%2001.png" alt="RubikLab 3D — Sequência Registrada, Otimização Algébrica e Notações Oficiais WCA" width="100%" />
+  <br>
+  <em>Figura 2: Painel de Controle e Notações WCA — Sequência de movimentos com cancelamento cruzado, controles manuais de rotação de faces e gerador de embaralhamento oficial WCA.</em>
+</p>
 
 ---
 
