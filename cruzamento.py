@@ -1,18 +1,44 @@
-# ==============================================================================
-# CRUZAMENTO.PY - OPERADOR GENÉTICO DE RECOMBINAÇÃO (CROSSOVER) E REPARAÇÃO
-# ==============================================================================
-# Este módulo implementa a recombinação genética de ponto único entre pares
-# de indivíduos selecionados (pais) para produzir novos descendentes (filhos).
-#
-# Após o corte e união dos genes dos pais, pode ocorrer de a junção criar
-# movimentos redundantes (ex: juntar um final 'R' com um início 'R'').
-# Para corrigir isso, aplicamos a função 'reparar_individuo', que percorre o filho
-# em uma única passada O(N) e substitui qualquer gene inválido por uma alternativa
-# válida e compatível da tabela de transições.
-# ==============================================================================
+"""
+==============================================================================
+CRUZAMENTO.PY - OPERADOR GENÉTICO DE RECOMBINAÇÃO (CROSSOVER) E REPARAÇÃO
+==============================================================================
+Este módulo implementa o operador de recombinação genética (Single-Point Crossover)
+e o mecanismo determinístico de reparação sintática O(N) de sequências de giros.
+
+1. Fundamentação Teórica - Teorema dos Esquemas de Holland:
+   Em Algoritmos Genéticos aplicados a problemas de busca em grafos de Cayley,
+   sequências de rotações formam "Building Blocks" (sub-sequências de alta aptidão
+   que posicionam e orientam peças específicas, como pares de F2L ou arestas da cruz).
+   O crossover de ponto único permite que blocos benéficos descobertos em linhagens
+   distintas se combinem em um único descendente, promovendo o salto qualitativo
+   no espaço de estados:
+       Pai 1:  [ g_1, g_2, ..., g_k | g_{k+1}, ..., g_N ]
+       Pai 2:  [ h_1, h_2, ..., h_k | h_{k+1}, ..., h_N ]
+       --------------------------------------------------
+       Filho 1: [ g_1, ..., g_k | h_{k+1}, ..., h_N ]
+       Filho 2: [ h_1, ..., h_k | g_{k+1}, ..., g_N ]
+
+2. Problema da Incoerência na Fronteira de Junção (Boundary Condition):
+   Quando a cauda do Pai 1 é unida à cabeça do Pai 2 no índice de corte k, pode surgir
+   uma violação sintática na transição g_k -> h_{k+1}, tais como:
+   a) Mesma Face Consecutiva: Ex: g_k = 'R' e h_{k+1} = "R'". Isso gera redundância
+      ou auto-cancelamento desnecessário, desperdiçando genes.
+   b) Comutatividade Paralela Degradada: Ex: g_{k-1} = 'R', g_k = 'L' e h_{k+1} = 'R',
+      gerando repetição da mesma face em eixos paralelos independentes.
+
+3. Mecanismo de Reparação Linear O(N):
+   Para manter a população estritamente no espaço viável sem o custo proibitivo de
+   rejeitar e regerar indivíduos, a função `reparar_individuo` varre o cromossomo em
+   um único passo linear O(N). Utilizando a tabela pré-computada de transições válidas
+   `VALID_NEXT_MOVES_SET`, qualquer gene que viole o contexto (face_ant, face_ret) é
+   imediatamente substituído por um alelo válido equivalente, preservando a integridade
+   estrutural do cromossomo.
+==============================================================================
+"""
 
 import random
 from populacao import MOVIMENTOS, PARALELAS, VALID_NEXT_MOVES, VALID_NEXT_MOVES_SET
+
 
 
 def obter_face(movimento):

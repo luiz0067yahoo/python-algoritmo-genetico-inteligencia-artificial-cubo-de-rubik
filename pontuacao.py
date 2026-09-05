@@ -1,13 +1,51 @@
-# ==============================================================================
-# PONTUACAO.PY - MOTOR DE SIMULAÇÃO E AVALIAÇÃO DE FITNESS DO CUBO DE RUBIK
-# ==============================================================================
-# Este módulo é responsável pelo cálculo ultrarrápido da pontuação (fitness)
-# de qualquer sequência de movimentos aplicada ao Cubo Mágico 3x3x3.
-#
-# Em vez de instanciar estruturas de objetos pesadas (como classes de cubies e faces)
-# a cada avaliação, utilizamos um motor de permutação direta O(1) dos 54 adesivos
-# (stickers) do cubo, atingindo centenas de milhares de avaliações por segundo.
-# ==============================================================================
+"""
+==============================================================================
+PONTUACAO.PY - MOTOR DE SIMULAÇÃO E AVALIAÇÃO DE FITNESS DO CUBO DE RUBIK
+==============================================================================
+Este módulo implementa o núcleo avaliativo de alto desempenho (Fitness Function)
+utilizado pelo Algoritmo Genético e pela Busca Exaustiva para guiar a convergência
+do Cubo Mágico 3x3x3 até o estado resolvido.
+
+1. Fundamentação Algébrica e O(1) State Transitions:
+   O Cubo de Rubik é formalmente modelado como um subgrupo do grupo simétrico
+   S_54 das permutações de 54 elementos (G ≤ S_54). Em vez de manipular objetos
+   Python complexos em tempo de execução (como instâncias de classes para cubies,
+   faces e adesivos com alto overhead de alocação de memória e garbage collection),
+   o estado do cubo é compactado em uma tupla imutável de 54 inteiros (0 a 5).
+   Cada rotação das 18 operações canônicas da WCA (U, D, F, B, R, L e suas variações
+   ', 2) é pré-compilada em uma tabela estática de lookup de 54 índices:
+       novo_estado[i] = estado_atual[tabela_permutacao[m][i]]
+   Isso garante uma transição de estado pura em tempo O(1) por rotação, com alta
+   localidade espacial de cache L1/L2 na CPU.
+
+2. Função de Fitness Multiobjetivo Decomposta (CFOP / Fridrich):
+   A função de pontuação foi projetada para superar o problema dos "platôs de fitness"
+   e "mínimos locais" característicos da contagem ingênua de adesivos. Ela decompõe
+   a avaliação em 6 componentes matemáticos alinhados com o Método Fridrich (CFOP):
+   
+   a) Posicionamento de Cantos (8 cubies x 25 pts = máx 200 pts):
+      Avalia se o conjunto tricolor {c0, c1, c2} do canto pertence ao slot geométrico correto.
+   b) Orientação de Cantos (8 cubies x 25 pts = máx 200 pts):
+      Avalia se os 3 adesivos do canto coincidem exatamente com a cor da face adjacente.
+   c) Posicionamento de Arestas (12 cubies x 20 pts = máx 240 pts):
+      Avalia se o par de cores {e0, e1} da aresta está no slot tridimensional correto.
+   d) Orientação de Arestas (12 cubies x 20 pts = máx 240 pts):
+      Verifica se a aresta não está invertida (sem "flip").
+   e) Coerência Estrutural de Blocos e Cruz (Pares F2L e Cruz D = máx 330 pts):
+      - Cruz da face inferior (DF, DB, DL, DR): 20 pts/aresta + 50 pts bônus de cruz completa.
+      - 4 Pares F2L (Canto + Aresta acoplados na camada intermediária): 50 pts por par acoplado.
+   f) Métrica de Distância Manhattan 3D nos Cubies:
+      Calcula a distância euclidiana/Manhattan |Δx| + |Δy| + |Δz| de cada peça em relação
+      ao seu slot de repouso (Home), gerando um gradiente suave de atração contínua mesmo
+      quando nenhuma peça está perfeitamente no lugar.
+   g) Penalidade de Parcimônia (Occam's Razor):
+      Subtrai -lambda_mov * qtd_movimentos para favorecer cromossomos curtos e soluções
+      elegantes, evitando rotações circulares redundantes.
+   h) Bônus de Solução Perfeita (600 pts):
+      Concedido quando todos os 54 adesivos estão perfeitamente resolvidos, elevando o
+      teto máximo de pontuação para 2110.0 pontos.
+==============================================================================
+"""
 
 import pycuber as pc
 
@@ -44,6 +82,7 @@ SOLVED_STATE = ESTADO_RESOLVIDO
 # Exemplo: MOVE_PERMUTATIONS["U"] contém uma tupla de 54 índices indicando a nova
 # posição de cada adesivo após um giro na face U.
 MOVE_PERMUTATIONS = {}
+
 
 
 def _inicializar_tabela_permutacoes():

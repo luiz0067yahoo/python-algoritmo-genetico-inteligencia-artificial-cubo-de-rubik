@@ -192,7 +192,7 @@ Complementada por métricas de proximidade espacial 3D e bônus terminal de cubo
 
 ---
 
-## 📂 Estrutura de Arquivos
+## 📂 Estrutura de Arquivos e Detalhamento dos Módulos Python
 
 ```
 .
@@ -202,13 +202,25 @@ Complementada por métricas de proximidade espacial 3D e bônus terminal de cubo
 ├── populacao.py      # Geração de cromossomos, tabelas O(1) de transição e embaralhador WCA
 ├── pontuacao.py      # Motor de permutação O(1), lookup tables 3D e cálculo do Fitness em 6 componentes
 ├── cruzamento.py     # Operador de recombinação genética e reparo linear O(N)
-├── mutacao.py        # Operador de mutação com preservação de regras canônicas
+├── mutacao.py        # Operador de mutação com preservação de regras canônicas e comutadores CFOP
 ├── index.html        # Interface gráfica web 3D interativa (Three.js) com dashboard em tempo real
 ├── screenshot.png    # Captura de tela da interface principal e telemetria de hardware
 ├── screenshot 01.png # Captura de tela dos controles de rotação WCA e sequência de movimentos
 ├── .gitignore        # Ignora arquivos temporários e __pycache__
 └── README.md         # Documentação técnica completa do projeto
 ```
+
+### 🔬 Detalhamento Técnico dos Módulos Python
+
+| Arquivo | Papel Arquitetural | Entradas / Saídas | Algoritmos e Técnicas Principais |
+| :--- | :--- | :--- | :--- |
+| **`controlador.py`** | **Servidor Web, API REST e Orquestrador de Sessões** | **In:** Requisições HTTP (JSON)<br>**Out:** Stream de métricas de telemetria, HTML5/WebGL | • Servidor Flask multi-thread com CORS habilitado.<br>• Despacho assíncrono via daemon threads em background.<br>• Mutex lock (`LOCK_SESSAO`) para consistência thread-safe.<br>• Polling em tempo real (1 em 1s) para o frontend.<br>• Formatação de tempo canônica `HH:MM:SS`. |
+| **`geracao.py`** | **Motor Evolutivo Heterogêneo e Busca Incremental** | **In:** Embaralhamento e hiperparâmetros<br>**Out:** Sequência ótima de solução e estatísticas | • Execução simultânea de 16 ilhas de CPU (`ProcessPoolExecutor`) + Super-Ilha de GPU.<br>• Protocolo de migração cruzada periódica de indivíduos campeões.<br>• Decomposição em 4 macro-estágios de Fridrich (CFOP).<br>• Busca exaustiva ultrarrápida (<0.02s) para profundidades $N \le 3$.<br>• Busca incremental adaptativa de comprimento de cromossomo. |
+| **`pontuacao.py`** | **Motor de Simulação O(1) e Função de Fitness** | **In:** Estado do cubo (54 inteiros) e movimentos<br>**Out:** Fitness escalar (0 a 2110.0 pts) e métricas detalhadas | • Vetor estático de 54 adesivos indexados de 0 a 53.<br>• Lookup tables pré-computadas na inicialização com `PyCuber`.<br>• Decomposição do Fitness em 6 pilares geométricos 3D.<br>• Coordenadas espaciais $(x, y, z)$ e distância Manhattan de cubies.<br>• Bônus especial de terminal para cubo 100% resolvido. |
+| **`populacao.py`** | **Espaço Genotípico e Regras de Validação WCA** | **In:** Dimensões da população e comprimento<br>**Out:** Cromossomos e sequências canônicas | • Mapeamento das 18 operações canônicas do grupo $G = \langle U, D, F, B, R, L \rangle$.<br>• Regra 1: Proibição de giros consecutivos na mesma face ($C_4 \pmod 4$).<br>• Regra 2: Proibição de oscilações em faces opostas paralelas comutativas.<br>• Tabela pré-computada $O(1)$ de transições permitidas.<br>• Otimizador algébrico `simplificar_movimentos` com lookahead. |
+| **`cruzamento.py`** | **Operador Genético de Recombinação (Crossover)** | **In:** Pares de indivíduos progenitores<br>**Out:** Dois novos indivíduos descendentes (filhos) | • Cruzamento de Ponto Único (Single-Point Crossover).<br>• Algoritmo de reparo linear $O(N)$ (`reparar_individuo`).<br>• Eliminação instantânea de descontinuidades na junção de corte.<br>• Preservação da taxa configurável de recombinação. |
+| **`mutacao.py`** | **Variabilidade Genética e Comutadores de Grupo** | **In:** Indivíduo e taxa de mutação<br>**Out:** Indivíduo mutado e validado | • Mutação pontual estocástica por gene com filtro de vizinhança estendida ($i-2, i-1, i+1, i+2$).<br>• Injeção de comutadores $[A, B] = A B A' B'$ e conjugados $A B A'$.<br>• Biblioteca de macros de speedcubing (Sexy Move, Sune, Allan / U-perm, Inserções F2L).<br>• Prevenção de estagnação em mínimos locais. |
+| **`gpu_engine.py`** | **Aceleração Massiva por Compute Shaders (GPU)** | **In:** Matriz de IDs numéricos de cromossomos<br>**Out:** Vetor de scores avaliados na VRAM | • Compute Shaders em WGSL executados via Vulkan / Direct3D 12.<br>• Despacho em workgroups paralelos de 64 threads (@workgroup_size(64)).<br>• Gerenciamento Zero-Copy de buffers uniformes e de armazenamento na VRAM.<br>• Throughput sustentado de **~2.900.000 avaliações de fitness/s**.<br>• Fallback automático para CPU caso a GPU não esteja presente. |
 
 ---
 
@@ -244,7 +256,7 @@ http://localhost:5000
 
 ## 🎮 Interface Gráfica 3D & Dashboard de Hardware
 
-A interface web desenvolvida com Three.js oferece:
+A interface web desenvolvida com Three.js oferece uma experiência rica em telemetria e controle:
 - **Banner de Hardware Dinâmico**: Detecta e exibe automaticamente a CPU (**AMD Ryzen™ 7 PRO 8700GE** - 16 threads) e a GPU (**AMD Radeon™ 780M Graphics** - Vulkan Compute).
 - **Temporizador em Formato Canônico (`HH:MM:SS`)**: Exibe o tempo decorrido ao vivo (`00:00:00`) tanto no painel central quanto nos cards de status e conclusão.
 - **Painel de Decomposição do Score em Tempo Real**: Grid dedicado exibindo os 6 pilares do score atualizados instantaneamente:
@@ -256,24 +268,74 @@ A interface web desenvolvida com Three.js oferece:
   - ⚖️ **Penalidade de Tamanho** (ex: `-12.5 pts (25 movs)`)
   - 🏆 **Score Total Acumulado** (ex: `2110.0 pts`)
 - **Cubo 3D Interativo**: Controle de rotação livre com OrbitControls e atalhos de teclado (`U, D, F, B, R, L` + `Shift` para anti-horário e `Alt` para giros duplos).
-- **Planificação 2D em Tempo Real**: Visualização plana das 6 faces simultaneamente.
+- **Planificação 2D em Tempo Real**: Visualização plana das 6 faces simultaneamente com atualização síncrona.
 - **Execução Automática da Solução**: Ao encontrar a solução, o cubo é automaticamente animado e finalizado no estado $54/54$.
 
-### 📸 Capturas de Tela da Aplicação
+### 📸 Capturas de Tela da Aplicação e Guia dos Componentes
+
+#### 1. Painel Superior — Visualizador 3D, Telemetria de Hardware e Hiperparâmetros
 
 <p align="center">
   <img src="screenshot.png" alt="RubikLab 3D — Dashboard Principal, Monitoramento de Hardware e Parâmetros Genéticos" width="100%" />
   <br>
-  <em>Figura 1: Dashboard Principal — Visualizador 3D do cubo, telemetria em tempo real de CPU (AMD Ryzen™ 7 PRO 8700GE - 16 threads) e GPU (AMD Radeon™ 780M Graphics - 12 CUs), e controle de hiperparâmetros do Algoritmo Genético.</em>
+  <em>Figura 1: Dashboard Principal — Visualizador Three.js 3D, telemetria de hardware (AMD Ryzen™ 7 PRO 8700GE + Radeon™ 780M Graphics), contadores de score e formulário de hiperparâmetros evolutivos.</em>
 </p>
 
-<br>
+##### 🔍 Componentes em Destaque na Figura 1:
+- **Header Superior**: Logotipo dinâmico, título do sistema e selo de status vivo (`Cubo Resolvido (100%)` em verde esmeralda ou `Executando AG...`).
+- **Visualizador 3D Central (Three.js)**:
+  - Renderização PBR com iluminação de três pontos e materiais reflexivos realistas.
+  - Botões de controle de visualização no canto superior esquerdo: **📷 Câmera**, **🗺️ Vista 2D** e **⚡ Normal**.
+  - Barra de instruções de interação inferior: *Arraste para orbitar • Role para zoom • Acompanhe o progresso do AG ao vivo*.
+- **Planificação 2D Suspensa**:
+  - Mini-mapa planificado em formato de cruz clássica exibindo em tempo real a cor exata de cada um dos 54 adesivos nas faces Topo (Branco), Esquerda (Laranja), Frente (Verde), Direita (Vermelho), Atrás (Azul) e Base (Amarelo).
+- **Card "Score & Estado do Cubo"**:
+  - Medidor de **Peças Corretas**: `26 / 26` cubies posicionados e orientados corretamente com barra de progresso em gradiente ciano-índigo.
+  - Medidor de **Stickers Corretos**: `54 / 54` adesivos em conformidade absoluta com o estado resolvido.
+- **Banner de Telemetria de Hardware Concorrente**:
+  - ⚡ **CPU AMD Ryzen™ 7 PRO 8700GE**: Identificação de 8 núcleos físicos, 16 threads lógicos e 16 ilhas genéticas concorrentes a 100% de ocupação.
+  - 🎮 **GPU AMD Radeon™ 780M Graphics**: Identificação de 12 Compute Units (768 Stream Processors), backend Vulkan Compute Shaders e taxa de **~2.900.000 avaliações/s** com indicador `GPU 100% ATIVA`.
+- **Card de Hiperparâmetros do Algoritmo Genético**:
+  - Campo `embaralhamento`: Sequência WCA de entrada ou inserção manual.
+  - Campos de taxas genéticas: `porcentagem_mutacao` (ex: 0,05), `porcentagem_cruzamento` (ex: 0,30 a 0,70) e `porcentagem_selecao` (ex: 0,50).
+  - Campos de dimensão evolutiva: `quantidade_geracoes` (ex: 20000), `quantidade_individuos_inicial` (ex: 10000), `intervalo_ciclo` (ex: 100).
+  - Limites de busca: `tamanho_minimo` (1) e `tamanho_maximo` (70).
+  - Seletor `modo_hardware`: Alternância entre **cpu**, **gpu** ou **cpu+gpu (Híbrido)**.
+  - Botão Primário com Gradiente: **🚀 Iniciar Solução com Algoritmo Genético**.
+
+---
+
+#### 2. Painel Inferior — Sequência Registrada, Otimização Algébrica e Notações Oficiais WCA
 
 <p align="center">
   <img src="screenshot%2001.png" alt="RubikLab 3D — Sequência Registrada, Otimização Algébrica e Notações Oficiais WCA" width="100%" />
   <br>
-  <em>Figura 2: Painel de Controle e Notações WCA — Sequência de movimentos com cancelamento cruzado, controles manuais de rotação de faces e gerador de embaralhamento oficial WCA.</em>
+  <em>Figura 2: Painel de Controle e Notações WCA — Log de movimentos em notação oficial, ferramentas algébricas de cancelamento, botões manuais de giro de faces e ferramentas de embaralhamento WCA.</em>
 </p>
+
+##### 🔍 Componentes em Destaque na Figura 2:
+- **Card "Sequência Registrada no Cubo"**:
+  - Console em fonte monospace JetBrains Mono que registra em tempo real todos os giros executados no cubo (manual ou via AG).
+  - Contador de movimentos no topo direito (ex: `0 movs (Total: 0)`).
+  - Botões de Ação Imediata:
+    - **▶️ Executar**: Reproduz a sequência salva no cubo 3D passo a passo.
+    - **⏮️ Inverter**: Inverte matematicamente toda a sequência (inverte a ordem dos movimentos e troca giros horários por anti-horários e vice-versa) para desfazer qualquer manipulação.
+    - **📋 Copiar**: Copia a sequência para a área de transferência do sistema operacional.
+    - **🗑️ Limpar**: Reseta a fila de movimentos registrados.
+  - Toggles de Configuração Algébrica:
+    - **Otimização Algébrica Automática (Cancelamento Cruzado)**: Ativa a redução comutativa $O(1)$ de faces paralelas opostas (ex: converte `R R'` em vazio e `U D U'` em `D`).
+    - **Formato Compacto**: Remove espaços desnecessários entre códigos (ex: `D2R'D`).
+- **Card "Notações Oficiais (WCA)"**:
+  - Grade de botões interativos para manipulação direta do cubo 3D pelo usuário dividida pelas 6 faces oficiais, cada uma com seu indicador de cor correspondente:
+    - ⚪ **U (Topo / Up)**: Botões `U`, `U'`, `U2`
+    - 🟡 **D (Base / Down)**: Botões `D`, `D'`, `D2`
+    - 🟢 **F (Frente / Front)**: Botões `F`, `F'`, `F2`
+    - 🔵 **B (Atrás / Back)**: Botões `B`, `B'`, `B2`
+    - 🟠 **L (Esquerda / Left)**: Botões `L`, `L'`, `L2`
+    - 🔴 **R (Direita / Right)**: Botões `R`, `R'`, `R2`
+- **Botões Globais de Sessão**:
+  - **🎲 Embaralhar Oficial (WCA 25x)**: Requisita à API REST a geração instantânea de um scramble válido de 25 movimentos WCA e anima o embaralhamento no cubo 3D.
+  - **🔄 Resetar Cubo**: Retorna o cubo instantaneamente ao estado resolvido ($54/54$).
 
 ---
 

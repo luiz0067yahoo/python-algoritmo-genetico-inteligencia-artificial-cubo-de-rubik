@@ -1,21 +1,45 @@
-# ==============================================================================
-# GERACAO.PY - MOTOR EVOLUTIVO HÍBRIDO SIMULTÂNEO (CPU MULTI-CORE + GPU)
-# ==============================================================================
-# Este módulo coordena a busca e evolução de soluções para o Cubo de Rubik.
-#
-# Principais Funcionalidades:
-# 1. Resolução Incremental:
-#    Testa progressivamente cromossomos de tamanho_minimo até tamanho_maximo.
-# 2. Busca Exaustiva Rápida (para tamanhos 1, 2 e 3):
-#    Para espaços de busca pequenos (até 4.000 combinações), avalia todas as
-#    combinações em milissegundos (< 0.02s).
-# 3. Execução Simultânea Heterogênea (CPU + GPU):
-#    Executa simultaneamente 15 processos paralelos nos núcleos da CPU
-#    (AMD Ryzen™ 7 PRO 8700GE) e a Super-Ilha de GPU (AMD Radeon™ 780M Graphics)
-#    via Compute Shaders WebGPU/Vulkan com migração bidirecional de campeões.
-# 4. Fallback Dinâmico:
-#    Adapta-se automaticamente caso apenas CPU ou apenas GPU esteja disponível.
-# ==============================================================================
+"""
+==============================================================================
+GERACAO.PY - MOTOR EVOLUTIVO HÍBRIDO HETEROGÊNEO SIMULTÂNEO (CPU MULTI-CORE + GPU)
+==============================================================================
+Este módulo constitui o núcleo orquestrador do Algoritmo Genético, responsável por
+coordenar a exploração e explotação estocástica do espaço de configurações do Cubo
+Mágico 3x3x3 (~4,32 x 10^19 estados possíveis) através de hardware heterogêneo.
+
+1. Arquitetura de Computação Heterogênea Simultânea:
+   O motor aproveita integralmente os recursos de processamento paralelo do sistema:
+   - CPU (AMD Ryzen™ 7 PRO 8700GE): Cria um pool de 16 processos isolados (ProcessPoolExecutor)
+     operando em modelo de ilhas genéticas independentes, evitando a contenção do GIL
+     (Global Interpreter Lock) do Python e maximizando o throughput de instruções SIMD.
+   - GPU (AMD Radeon™ 780M Graphics): Instancia uma Super-Ilha computacional massiva
+     via WebGPU / Vulkan Compute Shaders (wgpu-py), executando simulação de permutações
+     e scoring em paralelo massivo através dos 12 Compute Units (768 Shaders).
+   - Topologia de Migração Cruzada: A cada ciclo de época evolutiva, os indivíduos campeões
+     são trocados bidirecionalmente entre o pool de ilhas da CPU e a Super-Ilha da GPU,
+     evitando estagnação em mínimos locais e acelerando a descoberta de soluções.
+
+2. Estratégias Evolutivas e Decomposição Hierárquica:
+   - Busca Exaustiva Determinística (< 4.000 combinações):
+     Para profundidades de 1 a 3 giros, executa uma varredura completa da árvore de Cayley
+     em frações de milissegundo (< 0.02s), garantindo resposta imediata para cubos próximos do alvo.
+   - Resolução Hierárquica por Estágios (Método CFOP / Jessica Fridrich):
+     Resolve o cubo progressivamente através dos 4 macro-estágios:
+       1) Cross (Cruz na face D): Alinhamento das 4 arestas inferiores aos centros.
+       2) F2L (First Two Layers): Acoplamento e inserção dos 4 pares (canto + aresta).
+       3) OLL (Orientation of Last Layer): Orientação de todos os adesivos da face U.
+       4) PLL (Permutation of Last Layer): Permutação final das peças até o estado 54/54.
+   - Injeção Adaptativa de Comutadores Algébricos:
+     Sob detecção de platô de fitness (estagnação evolutiva), o motor injeta comutadores
+     [A, B] = A B A' B' e conjugados B A B' para preservar subestruturas intactas enquanto
+     efetua o rearranjo localizado das peças restantes.
+
+3. Controle de Concorrência e Tolerância a Falhas:
+   - Suporte a checkpoints de cancelamento cooperativo atômico via `is_cancelled()`.
+   - Streaming assíncrono de telemetria através de callbacks de progresso compatíveis com SSE.
+   - Fallback dinâmico resiliente para modo exclusivo CPU ou exclusivo GPU caso um dos
+     subsistemas de hardware esteja indisponível.
+==============================================================================
+"""
 
 import copy
 import os
