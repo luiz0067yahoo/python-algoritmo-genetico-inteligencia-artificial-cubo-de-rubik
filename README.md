@@ -51,26 +51,35 @@ Um sistema completo de Inteligência Artificial e Computação Evolutiva para re
 
 O Algoritmo Genético busca encontrar a sequência ótima de movimentos que transforma um cubo embaralhado no estado resolvido.
 
+<div align="center">
+  <img src="doc/fluxograma_algoritmo_genetico.png" alt="Fluxograma do Algoritmo Genético - RubikLab AI" width="850"/>
+  <p><em>Figura 1: Fluxograma da Arquitetura do Algoritmo Genético Heterogêneo (16 Threads CPU + Compute Shaders GPU) e Avaliação Heurística CFOP.</em></p>
+</div>
+
+<details>
+<summary><b>Visualizar Código Mermaid do Fluxograma</b></summary>
+
 ```mermaid
 graph TD
-    A[Cubo Embaralhado WCA] --> B[População Heterogênea de Cromossomos]
+    A["🎲 Cubo Embaralhado (WCA Oficial)"] --> B["👥 População Heterogênea de Cromossomos"]
     B --> C["⚡ 16 Ilhas CPU (16 Processos em Paralelo / 100% CPU)"]
     B --> D["🎮 Super-Ilha GPU (12 CUs / 768 Shaders WGSL / 100% GPU)"]
-    C <-->|Migração Cruzada de Elites a cada Época| D
-    C --> E["🎯 Decomposição do Score (6 Componentes)"]
+    C <-->|"🔄 Migração Cruzada de Elites a cada Ciclo"| D
+    C --> E["🎯 Decomposição do Score em 6 Componentes"]
     D --> E
-    E --> F{Score == 2110 / 54 Adesivos?}
-    F -- Sim --> G[Solução Ótima Encontrada]
-    F -- Não --> H[Seleção por Torneio k=3]
-    H --> I[Elitismo - Preservação dos Top 5%]
-    H --> J[Cruzamento / Crossover com Reparo O N]
+    E --> F{"⚖️ Score == 2110.0 / 54 Adesivos?"}
+    F -- "Sim (Convergência)" --> G["🎉 Solução Ótima Encontrada!"]
+    F -- "Não (Evolução)" --> H["🎯 Seleção por Torneio (k=3)"]
+    H --> I["👑 Elitismo (Top 5%)"]
+    H --> J["🔀 Crossover com Reparo O(N)"]
     H --> K["⚡ Macro-Mutações com Comutadores de Fridrich"]
-    I --> L[Nova População]
+    I --> L["🧬 Nova População"]
     J --> L
     K --> L
     L --> B
-    G --> M[Animação e Resolução Automática no Cubo 3D]
+    G --> M["🧊 Animação e Resolução no Cubo 3D (Three.js)"]
 ```
+</details>
 
 ### 1. Representação do Cromossomo (Genótipo)
 - Cada **gene** é um movimento em Notação Canônica WCA: `U, U', U2, D, D', D2, F, F', F2, B, B', B2, R, R', R2, L, L', L2`.
@@ -90,13 +99,11 @@ No **RubikLab AI**, o método de Jessica Fridrich é transposto para o paradigma
 
 ```mermaid
 graph LR
-    C["1. Cross (Cruz na Base D)"] --> F["2. F2L (Duas Primeiras Camadas)"]
+    C["1. CROSS (Cruz da Base D)"] --> F["2. F2L (Primeiras 2 Camadas)"]
     F --> O["3. OLL (Orientação do Topo U)"]
-    O --> P["4. PLL (Permutação Final)"]
+    O --> P["4. PLL (Permutação Final Topo U)"]
     P --> S["🎯 Cubo 100% Resolvido (54/54)"]
 ```
-
----
 
 ### 📐 Detalhamento dos 4 Estágios do Método CFOP
 
@@ -104,7 +111,7 @@ graph LR
 | :---: | :---: | :--- | :--- | :--- | :---: |
 | **1º** | **C** | **Cross (Cruz)** | Construção de uma cruz na face inferior (normalmente face branca ou base $D$), alinhando as 4 arestas ($DF, DB, DL, DR$) com seus centros laterais correspondentes. | Sub-meta de profundidade curta ($\le 6-8$ movimentos). O AG converge instantaneamente com seleção elitista sem risco de colisão de blocos já montados. | **$\ge 20/54$** adesivos |
 | **2º** | **F** | **F2L (First Two Layers)** | Resolução simultânea dos 4 pares (canto da base + aresta intermediária correspondente) nos 4 nichos verticais ($FR, FL, BR, BL$). No speedcubing humano, compreende 41 casos. | O AG avalia a formação dos 4 pares simultâneos (`pares_f2l`) e aplica operadores genéticos baseados em comutadores e inserções que não desfazem a cruz inferior. | **$\ge 41/54$** adesivos |
-| **3º** | **O** | **OLL (Orientation of Last Layer)** | Orientação de todas as 8 peças da face superior (amarela, $U$), fazendo com que todos os adesivos amarelos fiquem voltados para cima (face $U$ uniforme). Abrange 57 algoritmos canônicos. | Maximiza a componente de orientação de cantos e arestas ($\text{orient\_cantos} + \text{orient\_arestas}$), gerando um gradiente contínuo de fitness sem que o AG precise adivinhar a permutação correta. | **$\ge 45/54$** adesivos |
+| **3º** | **O** | **OLL (Orientation of Last Layer)** | Orientação de todas as 8 peças da face superior (amarela, $U$), fazendo com que todos os adesivos amarelos fiquem voltados para cima (face $U$ uniforme). Abrange 57 algoritmos canônicos. | Maximiza a componente de orientação de cantos e arestas (`orientacao_cantos` + `orientacao_arestas`), gerando um gradiente contínuo de fitness sem que o AG precise adivinhar a permutação correta. | **$\ge 45/54$** adesivos |
 | **4º** | **P** | **PLL (Permutation of Last Layer)** | Permutação das peças da última camada mantendo a orientação inalterada, levando o cubo ao estado final resolvido ($54/54$ adesivos). Compreende 21 algoritmos clássicos. | O AG foca unicamente em permutar peças no topo ($U$) e na camada intermediária até que todas as 6 faces fiquem monocromáticas, atingindo a pontuação perfeita de **54/54** e **Score 2110.0 pts**. | **$54/54$** adesivos |
 
 #### 1. Cross (Cruz na Face Inferior - Camada D)

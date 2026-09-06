@@ -104,6 +104,11 @@ No contexto computacional e heurístico deste projeto, o método Fridrich decomp
 
 ## ⚙️ Arquitetura do Sistema e Algoritmo
 
+<div align="center">
+  <img src="fluxograma_algoritmo_genetico.png" alt="Fluxograma do Algoritmo Genético - RubikLab AI" width="850"/>
+  <p><em>Figura 1: Fluxograma da Arquitetura do Algoritmo Genético Heterogêneo (16 Threads CPU + Compute Shaders GPU) e Avaliação Heurística CFOP.</em></p>
+</div>
+
 ```text
 +-----------------------------------------------------------+
 |                    População Inicial                      |
