@@ -100,12 +100,32 @@ graph LR
 
 ### 📐 Detalhamento dos 4 Estágios do Método CFOP
 
-| Estágio | Sigla | Nome Completo | Objetivo no Speedcubing Humano | Mecanismo no Algoritmo Genético |
-| :---: | :---: | :--- | :--- | :--- |
-| **1º** | **C** | **Cross (Cruz)** | Construção de uma cruz na face inferior (normalmente face branca ou base $D$), alinhando as 4 arestas ($DF, DB, DL, DR$) com seus centros laterais correspondentes. | Sub-meta de profundidade curta ($\le 6-8$ movimentos). O AG converge instantaneamente com seleção elitista sem risco de colisão de blocos já montados. |
-| **2º** | **F** | **F2L (First Two Layers)** | Resolução simultânea dos 4 pares (canto da base + aresta intermediária correspondente) nos 4 nichos verticais ($FR, FL, BR, BL$). No speedcubing humano, compreende 41 casos. | O AG avalia a formação dos 4 pares simultâneos (`pares_f2l`) e aplica operadores genéticos baseados em comutadores e inserções que não desfazem a cruz inferior. |
-| **3º** | **O** | **OLL (Orientation of Last Layer)** | Orientação de todas as 8 peças da face superior (amarela, $U$), fazendo com que todos os adesivos amarelos fiquem voltados para cima (face $U$ uniforme). Abrange 57 algoritmos canônicos. | Maximiza a componente de orientação de cantos e arestas ($\text{orient\_cantos} + \text{orient\_arestas}$), gerando um gradiente contínuo de fitness sem que o AG precise adivinhar a permutação correta. |
-| **4º** | **P** | **PLL (Permutation of Last Layer)** | Permutação das peças da última camada mantendo a orientação inalterada, levando o cubo ao estado final resolvido ($54/54$ adesivos). Compreende 21 algoritmos clássicos. | O AG foca unicamente em permutar peças no topo ($U$) e na camada intermediária até que todas as 6 faces fiquem monocromáticas, atingindo a pontuação perfeita de **54/54** e **Score 2110.0 pts**. |
+| Estágio | Sigla | Nome Completo | Objetivo no Speedcubing Humano | Mecanismo no Algoritmo Genético | Meta no Cubo |
+| :---: | :---: | :--- | :--- | :--- | :---: |
+| **1º** | **C** | **Cross (Cruz)** | Construção de uma cruz na face inferior (normalmente face branca ou base $D$), alinhando as 4 arestas ($DF, DB, DL, DR$) com seus centros laterais correspondentes. | Sub-meta de profundidade curta ($\le 6-8$ movimentos). O AG converge instantaneamente com seleção elitista sem risco de colisão de blocos já montados. | **$\ge 20/54$** adesivos |
+| **2º** | **F** | **F2L (First Two Layers)** | Resolução simultânea dos 4 pares (canto da base + aresta intermediária correspondente) nos 4 nichos verticais ($FR, FL, BR, BL$). No speedcubing humano, compreende 41 casos. | O AG avalia a formação dos 4 pares simultâneos (`pares_f2l`) e aplica operadores genéticos baseados em comutadores e inserções que não desfazem a cruz inferior. | **$\ge 41/54$** adesivos |
+| **3º** | **O** | **OLL (Orientation of Last Layer)** | Orientação de todas as 8 peças da face superior (amarela, $U$), fazendo com que todos os adesivos amarelos fiquem voltados para cima (face $U$ uniforme). Abrange 57 algoritmos canônicos. | Maximiza a componente de orientação de cantos e arestas ($\text{orient\_cantos} + \text{orient\_arestas}$), gerando um gradiente contínuo de fitness sem que o AG precise adivinhar a permutação correta. | **$\ge 45/54$** adesivos |
+| **4º** | **P** | **PLL (Permutation of Last Layer)** | Permutação das peças da última camada mantendo a orientação inalterada, levando o cubo ao estado final resolvido ($54/54$ adesivos). Compreende 21 algoritmos clássicos. | O AG foca unicamente em permutar peças no topo ($U$) e na camada intermediária até que todas as 6 faces fiquem monocromáticas, atingindo a pontuação perfeita de **54/54** e **Score 2110.0 pts**. | **$54/54$** adesivos |
+
+#### 1. Cross (Cruz na Face Inferior - Camada D)
+- **Peças Alvo:** 4 arestas da camada inferior ($DF, DB, DL, DR$).
+- **Mecânica Speedcubing:** Alinha as 4 arestas da base de modo que coincidam simultaneamente com a cor da face inferior (tipicamente branca) e com as cores dos centros adjacentes (verde, azul, laranja e vermelho).
+- **Abordagem no Algoritmo Genético:** O motor evolutivo foca em sequências curtas ($\le 6$ a $8$ giros). Cada aresta da cruz confere $+20\text{ pts}$, com um bônus adicional de $+50\text{ pts}$ para a cruz completa (totalizando $+130\text{ pts}$), garantindo que a base inicial seja fixada sem necessidade de busca exaustiva profunda.
+
+#### 2. F2L (First Two Layers - Duas Primeiras Camadas)
+- **Peças Alvo:** 4 cantos inferiores ($DLF, DLB, DRF, DRB$) + 4 arestas intermediárias ($FL, FR, BL, BR$).
+- **Mecânica Speedcubing:** Em vez de resolver primeiro a primeira camada e depois a segunda (método de camadas básico), os speedcubers acoplam pares de canto e aresta na camada superior e os inserem como blocos nos 4 nichos verticais, economizando tempo e giros (41 casos catalogados).
+- **Abordagem no Algoritmo Genético:** O AG recompensa a preservação da integridade estrutural atribuindo $+50\text{ pts}$ para cada par F2L formado e alinhado (máximo de $+200\text{ pts}$). Operadores de mutação injetam comutadores específicos (ex: *Sexy Move* $[R, U]$ e *Sledgehammer* $[R', F]$) para inserir peças nos nichos sem destruir a cruz inferior já montada.
+
+#### 3. OLL (Orientation of the Last Layer - Orientação do Topo)
+- **Peças Alvo:** 4 cantos superiores ($ULF, ULB, URF, URB$) + 4 arestas superiores ($UL, UB, UR, UF$).
+- **Mecânica Speedcubing:** Orienta as 8 peças da camada superior de modo que todos os adesivos da face superior (tipicamente amarela) fiquem voltados para cima, resultando em uma face $U$ totalmente sólida e monocromática (57 algoritmos catalogados na literatura).
+- **Abordagem no Algoritmo Genético:** O desacoplamento entre orientação e permutação é fundamental para evitar a "paisagem de engano" (deceptive landscape). O AG avalia a orientação de cantos ($8 \times 25\text{ pts} = 200\text{ pts}$) e arestas ($12 \times 20\text{ pts} = 240\text{ pts}$) independentemente da sua posição perimétrica, gerando um gradiente contínuo de fitness que atrai os indivíduos para a face superior amarela completa sem demandar solução lateral imediata.
+
+#### 4. PLL (Permutation of the Last Layer - Permutação Final)
+- **Peças Alvo:** Todas as peças da última camada que já estão com a face amarela orientada para cima.
+- **Mecânica Speedcubing:** Mantendo a face superior amarela orientada, as peças são transpostas/permutadas em suas órbitas até suas posições definitivas, alinhando as 4 cores laterais da última camada com os centros e resolvendo o quebra-cabeça integralmente (21 algoritmos catalogados: permutações puras de cantos, de arestas e combinadas).
+- **Abordagem no Algoritmo Genético:** Com a base e o topo orientados, a busca fica restrita à permutação planar no subgrupo da última camada. O AG aplica permutações canônicas de 3 ciclos (como U-perms e A-perms), atingindo os $54/54$ adesivos corretos e ativando o bônus de solução perfeita de $+600\text{ pts}$, consolidando o **Score Máximo de 2110.0 pts**.
 
 ---
 

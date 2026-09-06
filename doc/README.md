@@ -42,6 +42,66 @@ O fluxo da computação evolucionária reflete os principais marcos históricos 
 
 ---
 
+## 🧠 As 4 Etapas do Método de Jessica Fridrich (CFOP)
+
+O método de **Jessica Fridrich** (conhecido mundialmente pelo acrônimo **CFOP**: *Cross*, *First Two Layers*, *Orientation of Last Layer*, *Permutation of Last Layer*) foi desenvolvido na década de 1980 e formalizado em 1997 pela professora e pesquisadora Dra. Jessica Fridrich. É o padrão de referência mundial adotado pela *World Cube Association* (WCA) em competições de speedcubing.
+
+No contexto computacional e heurístico deste projeto, o método Fridrich decompõe o espaço amostral de aproximadamente $4,32 \times 10^{19}$ estados em **4 etapas hierárquicas**, reduzindo drasticamente a entropia do quebra-cabeça e servindo de alicerce para a modelagem de subobjetivos de aptidão:
+
+```text
++-----------------------------------------------------------------------------+
+|               ETAPA 1: CROSS (Cruz na Base - Camada D)                      |
+|   Alinhamento das 4 arestas inferiores aos centros laterais correspondentes |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|               ETAPA 2: F2L (First Two Layers - Duas Camadas)                |
+|   Acoplamento e inserção simultânea de 4 pares (canto + aresta de camada)   |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|               ETAPA 3: OLL (Orientation of Last Layer - Topo)               |
+|   Orientação dos 4 cantos e 4 arestas da face superior (amarelo uniforme)   |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|               ETAPA 4: PLL (Permutation of Last Layer - Final)              |
+|   Permutação das peças da última camada mantendo sua orientação (54/54)     |
++-----------------------------------------------------------------------------+
+```
+
+### 1. Cross (Cruz)
+- **Definição:** Construção de uma cruz na face inferior (normalmente face branca ou base $D$ - *Down*).
+- **Mecânica:** As 4 arestas inferiores ($DF, DB, DL, DR$) são orientadas e posicionadas de modo a coincidirem não apenas com a cor da face inferior, mas também com os respectivos centros das 4 faces laterais ($F, B, L, R$).
+- **Papel Heurístico:** Fixa uma base referencial de coordenadas e alinha as primeiras peças sem necessidade de algoritmos complexos ($\le 8$ movimentos). No algoritmo genético, estabelece uma sub-meta inicial de 20 adesivos corretos ($20/54$).
+
+### 2. F2L (First Two Layers / Duas Primeiras Camadas)
+- **Definição:** Resolução simultânea da primeira e da segunda camada do cubo mágico.
+- **Mecânica:** Em vez de posicionar cantos e arestas separadamente, o método agrupa pares formados por 1 canto da base inferior e 1 aresta da camada intermediária correspondente (slots $FR, FL, BR, BL$). Cada um dos 4 pares é acoplado no topo e inserido em seu slot correspondente sem desmanchar a cruz inferior. No speedcubing humano, compreende 41 casos canônicos.
+- **Papel Heurístico:** Elimina a destruição de peças já posicionadas através do uso de comutadores e inserções limpas. No algoritmo evolutivo, eleva o patamar de fitness para 41 adesivos corretos ($41/54$), montando integralmente as duas primeiras camadas.
+
+### 3. OLL (Orientation of the Last Layer / Orientação da Última Camada)
+- **Definição:** Orientação de todas as peças da camada superior (normalmente face amarela ou face $U$ - *Up*).
+- **Mecânica:** Manipula os 4 cantos superiores e as 4 arestas superiores de modo que todos os adesivos amarelos fiquem orientados para cima, tornando a face $U$ totalmente monocromática. As peças não precisam estar nas posições laterais corretas neste momento, apenas orientadas verticalmente. O método clássico cataloga 57 casos/algoritmos distintos.
+- **Papel Heurístico:** Desacopla a orientação da permutação espacial das peças. Permite que o algoritmo avalie a uniformidade da face superior ($\text{orientação dos cantos} + \text{orientação das arestas}$), elevando a contagem para 45 adesivos corretos ($45/54$) sem exigir que os blocos laterais coincidam.
+
+### 4. PLL (Permutation of the Last Layer / Permutação da Última Camada)
+- **Definição:** Permutação final das peças da última camada para concluir a montagem total do cubo.
+- **Mecânica:** Com a face superior totalmente orientada, as peças são trocadas de posição entre si (permutadas) ao longo do perímetro da camada superior sem alterar sua orientação. Abrange 21 algoritmos canônicos no método humano (ex: permutações de arestas $U$-perm, de cantos $A$-perm, e híbridas $T$-perm, $Y$-perm, etc.).
+- **Papel Heurístico:** Leva o cubo do estado de orientação superior uniforme para a resolução perfeita de todas as 6 faces ($54/54$ adesivos, Fitness $= 1,0$), alcançando o critério absoluto de parada do algoritmo.
+
+| Etapa | Sigla | Nome Completo | Peças Alvo | Meta no Cubo | Casos Canônicos |
+| :---: | :---: | :--- | :--- | :--- | :---: |
+| **1ª** | **C** | **Cross (Cruz)** | 4 arestas da base ($DF, DB, DL, DR$) | Cruz inferior alinhada aos centros | Intuitivo ($\le 8$ movs) |
+| **2ª** | **F** | **F2L (First Two Layers)** | 4 cantos inferiores + 4 arestas do meio | Duas primeiras camadas completas | 41 casos |
+| **3ª** | **O** | **OLL (Orientation)** | 4 cantos superiores + 4 arestas superiores | Face superior monocromática | 57 algoritmos |
+| **4ª** | **P** | **PLL (Permutation)** | Peças da última camada | 100% resolvido ($54/54$ peças) | 21 algoritmos |
+
+---
+
 ## ⚙️ Arquitetura do Sistema e Algoritmo
 
 ```text
